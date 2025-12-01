@@ -1,0 +1,756 @@
+# 작성자: 최성우
+openapi: 3.0.3
+info:
+  title: FaaS Backend API
+  description: |
+    소프트뱅크 해커톤 FaaS (Function as a Service) 플랫폼 백엔드 API
+
+    ## 주요 기능
+    - **Workspace 관리**: 함수 그룹을 관리하는 워크스페이스 CRUD
+    - **Function 관리**: Python 함수 생성, 수정, 삭제 (Base64 인코딩 코드)
+    - **Logs 조회**: 함수 실행 로그 조회
+
+    ## 데이터 저장소
+    - **DynamoDB**: 워크스페이스, 함수 메타데이터, 로그 저장
+    - **S3**: 함수 코드 파일 저장 (`s3://bucket/{workspace_id}/{function_id}.py`)
+
+    ## 인증
+    현재는 인증이 구현되어 있지 않습니다 (해커톤 버전).
+
+    ## 환경
+    - **로컬 개발**: `http://localhost:8000`
+    - **프로덕션**: K3s 클러스터 구축 후 Load Balancer URL로 변경 예정
+  version: 1.0.0
+  contact:
+    name: 최성우
+    email: bluew@example.com
+
+servers:
+  - url: http://localhost:8000
+    description: 로컬 개발 서버
+  - url: http://{k3s-lb-url}
+    description: 프로덕션 K3s 클러스터 (인프라 구축 후 URL 업데이트)
+    variables:
+      k3s-lb-url:
+        default: 'to-be-determined'
+
+tags:
+  - name: Workspaces
+    description: 워크스페이스 관리 API
+  - name: Functions
+    description: 함수 관리 API
+  - name: Logs
+    description: 함수 실행 로그 조회 API
+
+paths:
+  # ===== Health Check =====
+  /:
+    get:
+      summary: 헬스 체크
+      description: API 서버 상태 확인
+      responses:
+        '200':
+          description: 정상 작동
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: FaaS Backend API is running
+                  environment:
+                    type: string
+                    example: development
+
+  /health:
+    get:
+      summary: 헬스 체크 엔드포인트
+      description: Kubernetes 헬스 프로브용
+      responses:
+        '200':
+          description: 정상 상태
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  # ===== Workspaces =====
+  /api/workspaces:
+    get:
+      tags:
+        - Workspaces
+      summary: 워크스페이스 목록 조회
+      description: 모든 워크스페이스 목록을 반환합니다
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workspace'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Workspaces
+      summary: 워크스페이스 생성
+      description: 새로운 워크스페이스를 생성합니다
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreate'
+      responses:
+        '201':
+          description: 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/workspaces/{workspace_id}:
+    get:
+      tags:
+        - Workspaces
+      summary: 워크스페이스 조회
+      description: 특정 워크스페이스의 상세 정보를 조회합니다
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Workspaces
+      summary: 워크스페이스 수정
+      description: 워크스페이스 정보를 수정합니다
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceUpdate'
+      responses:
+        '200':
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workspace'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Workspaces
+      summary: 워크스페이스 삭제
+      description: 워크스페이스와 관련된 모든 함수를 삭제합니다
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '204':
+          description: 삭제 성공
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===== Functions =====
+  /api/workspaces/{workspace_id}/functions:
+    get:
+      tags:
+        - Functions
+      summary: 함수 목록 조회
+      description: 워크스페이스 내 모든 함수 목록을 반환합니다
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FunctionConfig'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Functions
+      summary: 함수 생성
+      description: |
+        새로운 함수를 생성합니다.
+        - Python 코드는 **Base64 인코딩**하여 전송해야 합니다
+        - DynamoDB에 메타데이터 저장
+        - S3에 코드 파일 저장
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FunctionCreate'
+      responses:
+        '201':
+          description: 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FunctionConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/workspaces/{workspace_id}/functions/{function_id}:
+    get:
+      tags:
+        - Functions
+      summary: 함수 상세 조회
+      description: 특정 함수의 상세 정보를 조회합니다
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FunctionId'
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FunctionConfig'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - Functions
+      summary: 함수 수정
+      description: |
+        함수 정보를 수정합니다.
+        - `code` 수정 시 Base64 인코딩 필요
+        - S3 코드 파일도 함께 업데이트됨
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FunctionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FunctionUpdate'
+      responses:
+        '200':
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FunctionConfig'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Functions
+      summary: 함수 삭제
+      description: |
+        함수를 삭제합니다.
+        - DynamoDB 메타데이터 삭제
+        - S3 코드 파일 삭제
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FunctionId'
+      responses:
+        '204':
+          description: 삭제 성공
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===== Logs =====
+  /api/workspaces/{workspace_id}/functions/{function_id}/logs:
+    get:
+      tags:
+        - Logs
+      summary: 함수 실행 로그 조회
+      description: |
+        함수 실행 로그를 최신순으로 조회합니다.
+        - 최대 1000개까지 조회 가능
+        - 기본값: 100개
+      parameters:
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FunctionId'
+        - name: limit
+          in: query
+          description: 조회할 로그 개수
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 1000
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    WorkspaceId:
+      name: workspace_id
+      in: path
+      required: true
+      description: 워크스페이스 ID (예 ws-UEjecyZM)
+      schema:
+        type: string
+        example: ws-UEjecyZM
+
+    FunctionId:
+      name: function_id
+      in: path
+      required: true
+      description: 함수 ID (예 fn-T4dXeUjT)
+      schema:
+        type: string
+        example: fn-T4dXeUjT
+
+  schemas:
+    # ===== Workspace Schemas =====
+    WorkspaceCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: 워크스페이스 이름
+          example: my-workspace
+        description:
+          type: string
+          description: 워크스페이스 설명
+          example: 테스트용 워크스페이스
+
+    WorkspaceUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: 워크스페이스 이름
+          example: updated-workspace
+        description:
+          type: string
+          description: 워크스페이스 설명
+          example: 업데이트된 설명
+
+    Workspace:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 워크스페이스 ID
+          example: ws-UEjecyZM
+        name:
+          type: string
+          description: 워크스페이스 이름
+          example: my-workspace
+        description:
+          type: string
+          description: 워크스페이스 설명
+          example: 테스트용 워크스페이스
+        createdAt:
+          type: string
+          format: date-time
+          description: 생성 일시 (ISO 8601)
+          example: '2025-12-01T10:23:54.737498'
+        functionCount:
+          type: integer
+          description: 포함된 함수 개수
+          example: 5
+        invocations24h:
+          type: integer
+          description: 최근 24시간 실행 횟수
+          example: 1250
+        errorRate:
+          type: number
+          format: float
+          description: 에러 발생률 (0.0 ~ 100.0)
+          example: 2.5
+
+    # ===== Function Schemas =====
+    FunctionCreate:
+      type: object
+      required:
+        - name
+        - code
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: 함수 이름
+          example: hello-world
+        description:
+          type: string
+          description: 함수 설명
+          example: 간단한 Hello World 함수
+        runtime:
+          type: string
+          description: 런타임 환경
+          default: Python 3.12
+          example: Python 3.12
+        memory:
+          type: integer
+          minimum: 128
+          maximum: 1024
+          description: 메모리 할당량 (MB)
+          default: 256
+          example: 256
+        timeout:
+          type: integer
+          minimum: 1
+          maximum: 900
+          description: 타임아웃 (초)
+          default: 30
+          example: 30
+        httpMethods:
+          type: array
+          items:
+            type: string
+            enum: [GET, POST, PUT, PATCH, DELETE]
+          description: 허용할 HTTP 메서드
+          default: [GET]
+          example: [GET, POST]
+        environmentVariables:
+          type: object
+          additionalProperties:
+            type: string
+          description: 환경 변수
+          example:
+            API_KEY: secret-key-123
+            DEBUG: 'true'
+        code:
+          type: string
+          format: base64
+          description: |
+            **Base64 인코딩된 Python 코드**
+
+            원본 코드 예시:
+            ```python
+            def handler(event, context):
+                return {"message": "Hello World"}
+            ```
+          example: ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsibWVzc2FnZSI6ICJIZWxsbyBXb3JsZCJ9
+
+    FunctionUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: 함수 이름
+          example: updated-function
+        description:
+          type: string
+          description: 함수 설명
+          example: 업데이트된 설명
+        runtime:
+          type: string
+          description: 런타임 환경
+          example: Python 3.12
+        memory:
+          type: integer
+          minimum: 128
+          maximum: 1024
+          description: 메모리 할당량 (MB)
+          example: 512
+        timeout:
+          type: integer
+          minimum: 1
+          maximum: 900
+          description: 타임아웃 (초)
+          example: 60
+        httpMethods:
+          type: array
+          items:
+            type: string
+            enum: [GET, POST, PUT, PATCH, DELETE]
+          description: 허용할 HTTP 메서드
+          example: [GET, POST, PUT]
+        environmentVariables:
+          type: object
+          additionalProperties:
+            type: string
+          description: 환경 변수
+          example:
+            API_KEY: new-secret-key
+        code:
+          type: string
+          format: base64
+          description: Base64 인코딩된 Python 코드
+          example: ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsibWVzc2FnZSI6ICJVcGRhdGVkIn0=
+        status:
+          type: string
+          enum: [active, disabled]
+          description: 함수 상태
+          example: active
+
+    FunctionConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 함수 ID
+          example: fn-T4dXeUjT
+        workspaceId:
+          type: string
+          description: 소속 워크스페이스 ID
+          example: ws-UEjecyZM
+        name:
+          type: string
+          description: 함수 이름
+          example: hello-world
+        description:
+          type: string
+          description: 함수 설명
+          example: 간단한 Hello World 함수
+        runtime:
+          type: string
+          description: 런타임 환경
+          example: Python 3.12
+        memory:
+          type: integer
+          description: 메모리 할당량 (MB)
+          example: 256
+        timeout:
+          type: integer
+          description: 타임아웃 (초)
+          example: 30
+        httpMethods:
+          type: array
+          items:
+            type: string
+          description: 허용된 HTTP 메서드
+          example: [GET, POST]
+        environmentVariables:
+          type: object
+          additionalProperties:
+            type: string
+          description: 환경 변수
+          example:
+            API_KEY: secret-key-123
+        code:
+          type: string
+          format: base64
+          description: Base64 인코딩된 Python 코드
+          example: ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsibWVzc2FnZSI6ICJIZWxsbyBXb3JsZCJ9
+        invocationUrl:
+          type: string
+          nullable: true
+          description: 함수 실행 URL (K3s 배포 후 할당)
+          example: null
+        status:
+          type: string
+          enum: [active, building, deploying, failed, disabled]
+          description: 함수 상태
+          example: active
+        lastModified:
+          type: string
+          format: date-time
+          description: 최종 수정 일시
+          example: '2025-12-01T10:24:30.654784'
+        lastDeployed:
+          type: string
+          format: date-time
+          nullable: true
+          description: 최종 배포 일시
+          example: null
+        invocations24h:
+          type: integer
+          description: 최근 24시간 실행 횟수
+          example: 0
+        errors24h:
+          type: integer
+          description: 최근 24시간 에러 횟수
+          example: 0
+        avgDuration:
+          type: number
+          format: float
+          description: 평균 실행 시간 (ms)
+          example: 0.0
+
+    # ===== Log Schemas =====
+    ExecutionLog:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 로그 ID
+          example: log-1733053200000
+        functionId:
+          type: string
+          description: 함수 ID
+          example: fn-T4dXeUjT
+        timestamp:
+          type: string
+          format: date-time
+          description: 실행 시각
+          example: '2025-12-01T10:30:00.000Z'
+        status:
+          type: string
+          enum: [success, error]
+          description: 실행 결과
+          example: success
+        duration:
+          type: number
+          format: float
+          description: 실행 시간 (ms)
+          example: 125.5
+        statusCode:
+          type: integer
+          description: HTTP 상태 코드
+          example: 200
+        requestBody:
+          type: object
+          nullable: true
+          description: 요청 바디
+          example:
+            param1: value1
+        responseBody:
+          type: object
+          nullable: true
+          description: 응답 바디
+          example:
+            message: Success
+        logs:
+          type: array
+          items:
+            type: string
+          description: 함수 실행 로그 메시지
+          example:
+            - Function started
+            - Processing request...
+            - Done
+        level:
+          type: string
+          enum: [info, warn, error]
+          description: 로그 레벨
+          example: info
+
+    LogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionLog'
+          description: 로그 목록
+        total:
+          type: integer
+          description: 총 로그 개수
+          example: 50
+
+    # ===== Error Schemas =====
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: object
+          properties:
+            error:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: 에러 코드
+                  example: NOT_FOUND
+                message:
+                  type: string
+                  description: 에러 메시지
+                  example: Workspace ws-xxx not found
+                details:
+                  type: object
+                  nullable: true
+                  description: 추가 에러 상세 정보
+                  example:
+                    field: code
+
+  responses:
+    NotFound:
+      description: 리소스를 찾을 수 없음
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail:
+              error:
+                code: NOT_FOUND
+                message: Workspace ws-xxx not found
+
+    BadRequest:
+      description: 잘못된 요청
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail:
+              error:
+                code: VALIDATION_ERROR
+                message: Invalid Base64 encoded code
+                details:
+                  field: code
+
+    InternalServerError:
+      description: 서버 내부 에러
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            detail:
+              error:
+                code: INTERNAL_ERROR
+                message: An unexpected error occurred
