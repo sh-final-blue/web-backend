@@ -1,0 +1,35 @@
+# 작성자: 최성우
+openapi: 3.0.0
+info:
+  title: Sample API
+  description: 이것은 샘플 API 문서입니다
+  version: 1.0.0
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+
+paths:
+  /users:
+    get:
+      summary: 사용자 목록 조회
+      description: 모든 사용자 목록을 반환합니다
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 1
+                    name:
+                      type: string
+                      example: 홍길동
+                    email:
+                      type: string
+                      example: hong@example.com

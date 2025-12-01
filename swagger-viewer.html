@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>API Spec Viewer</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css">
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #header {
+      background: #f5f5f5;
+      padding: 20px;
+      border-bottom: 2px solid #ddd;
+    }
+    h1 {
+      color: #333;
+      margin: 0 0 10px 0;
+    }
+    .info {
+      color: #666;
+      font-size: 14px;
+    }
+    .folder-section {
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin: 15px 20px;
+      border-radius: 5px;
+      background: #fafafa;
+    }
+    .folder-section h2 {
+      margin-top: 0;
+      color: #0066cc;
+    }
+    button {
+      margin: 5px 5px 0 0;
+      padding: 10px 15px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    button:hover {
+      background: #004c99;
+    }
+    #swagger-ui {
+      display: none;
+      margin-top: 20px;
+    }
+    #api-list {
+      padding-bottom: 20px;
+    }
+    .back-button {
+      margin: 20px;
+      display: none;
+    }
+    .swagger-ui .topbar {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>API Spec Viewer</h1>
+    <p class="info">
+      YAML 파일 버튼을 클릭하면 Swagger UI로 API 문서를 바로 확인할 수 있습니다. <br>
+      (Live Server 등 웹 서버 환경에서 실행하세요)
+    </p>
+  </div>
+
+  <div id="api-list">
+    <!-- dummy 폴더 -->
+    <div class="folder-section">
+      <h2>dummy 폴더</h2>
+      <p>
+        샘플 API 스펙 파일입니다. 이 버튼을 참고하여 새로운 YAML 파일을 추가할 수 있습니다.
+      </p>
+      <button onclick="loadSwagger('apiSpec/dummy/dummy.yaml')">dummy.yaml</button>
+      <!-- 새로운 YAML 파일을 추가하려면 아래와 같은 형식으로 버튼을 추가하세요 -->
+      <!-- <button onclick="loadSwagger('apiSpec/폴더명/파일명.yaml')">파일명.yaml</button> -->
+    </div>
+  </div>
+
+  <button class="back-button" id="backButton" onclick="goBack()">← 목록으로 돌아가기</button>
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-standalone-preset.js"></script>
+  <script>
+    let currentUI = null;
+
+    function loadSwagger(yamlPath) {
+      // 목록 숨기고 Swagger UI 보이기
+      document.getElementById('api-list').style.display = 'none';
+      document.getElementById('swagger-ui').style.display = 'block';
+      document.getElementById('backButton').style.display = 'block';
+
+      // Swagger UI 초기화
+      const fullYamlUrl = window.location.origin + '/' + yamlPath;
+
+      currentUI = SwaggerUIBundle({
+        url: fullYamlUrl,
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        layout: "StandaloneLayout"
+      });
+    }
+
+    function goBack() {
+      // 목록 보이고 Swagger UI 숨기기
+      document.getElementById('api-list').style.display = 'block';
+      document.getElementById('swagger-ui').style.display = 'none';
+      document.getElementById('backButton').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
