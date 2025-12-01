@@ -1,8 +1,8 @@
 # Frontend-Backend API Integration Status
 
 **Last Updated:** 2025-12-01
-**Backend Status:** ✅ Running on `http://localhost:8000`
-**Frontend:** ✅ Running on `http://localhost:3000`
+**Backend Status:** ✅ Production: `https://api.eunha.icu` | Local: `http://localhost:8000`
+**Frontend:** ✅ Production: `https://eunha.icu` | Local: `http://localhost:3000`
 **Integration Status:** 🟢 **95% Complete - Production Ready (except Function Invoke)**
 
 ---
