@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     cors_origins: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
+        "https://eunha.icu",
+        "http://eunha.icu",
     ]
 
     class Config:
