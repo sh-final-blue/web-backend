@@ -19,20 +19,17 @@ info:
 
     ## 환경
     - **로컬 개발**: `http://localhost:8000`
-    - **프로덕션**: K3s 클러스터 구축 후 Load Balancer URL로 변경 예정
+    - **프로덕션**: `https://api.eunha.icu` (현재 배포 중)
   version: 1.0.0
   contact:
     name: 최성우
     email: bluew@example.com
 
 servers:
+  - url: https://api.eunha.icu
+    description: 프로덕션 서버 (HTTPS)
   - url: http://localhost:8000
     description: 로컬 개발 서버
-  - url: http://{k3s-lb-url}
-    description: 프로덕션 K3s 클러스터 (인프라 구축 후 URL 업데이트)
-    variables:
-      k3s-lb-url:
-        default: 'to-be-determined'
 
 tags:
   - name: Workspaces
