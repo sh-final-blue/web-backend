@@ -136,14 +136,33 @@ class Settings(BaseSettings):
 **Owner**: Seongwoo Choi (after Hyunmin Cho's response)
 
 #### 3. Async Task Status Update Implementation ⭐⭐
-**Required Info**: (Requested from Hyunmin Cho)
-- Polling vs Webhook decision
+**Decision Made**: ✅ **Polling Method**
+**Recommended by**: Hyunmin Cho (Infrastructure Team)
 
 **Work to do**:
-- Option 1 (Polling): Periodically check infrastructure service for status
-- Option 2 (Webhook): Infrastructure service calls backend on completion
+- Implement periodic polling to infrastructure services
+- Check task status at regular intervals (e.g., every 5 seconds)
+- Update DynamoDB task status based on infrastructure response
+- Handle timeout and error cases
 
-**Owner**: Seongwoo Choi (after Hyunmin Cho's response)
+**Implementation Details**:
+```python
+# Pseudo-code for polling implementation
+async def poll_task_status(task_id: str, max_attempts: int = 120):
+    for attempt in range(max_attempts):
+        # Call infrastructure service to get status
+        status = await infrastructure_service.get_task_status(task_id)
+
+        # Update DynamoDB
+        db_client.update_build_task_status(...)
+
+        if status in ['completed', 'failed']:
+            break
+
+        await asyncio.sleep(5)  # Poll every 5 seconds
+```
+
+**Owner**: Seongwoo Choi (after receiving infrastructure endpoints)
 
 ---
 
@@ -233,6 +252,8 @@ Build Artifacts (expected):
 ## 🔗 Communication Log with Hyunmin Cho
 
 ### 2025-12-03
+
+#### Initial Request (Morning)
 1. ✅ Shared DynamoDB schema proposal
 2. ✅ Requested infrastructure integration info:
    - Infrastructure service endpoints
@@ -240,7 +261,29 @@ Build Artifacts (expected):
    - File storage path rules
    - Async task status update method
 
-**Status**: Waiting for Hyunmin Cho's response
+#### Response from Hyunmin Cho (Evening)
+**Status**: Partially resolved ✅
+
+1. **Infrastructure Service Endpoints** ⏰
+   - Will be confirmed and shared
+   - Expected to be available in the evening
+   - Likely documented in API documentation
+
+2. **S3 Path & ECR Information**
+   - ✅ **S3 Path**: No specific requirement - use proposed path structure
+     - Source: `build-sources/{workspace_id}/{task_id}/{filename}`
+     - Artifacts: `build-artifacts/{task_id}/{app_name}.wasm`
+   - ⏰ **ECR Information**: Will be shared in the evening
+
+3. **Async Task Status Update Method** ✅
+   - **Decision**: Use **Polling Method** (Option 1)
+   - Backend will periodically check infrastructure service for task status
+   - Recommended by infrastructure team
+
+**Next Steps**:
+- Wait for evening update with:
+  - Infrastructure service endpoints (Build, Push, Scaffold, Deploy)
+  - ECR registry URL and repository name
 
 ---
 
