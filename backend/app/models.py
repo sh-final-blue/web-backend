@@ -108,6 +108,101 @@ class LogsResponse(BaseModel):
     total: int
 
 
+# ===== BuildTask 모델 =====
+class BuildTaskResult(BaseModel):
+    """빌드 작업 결과"""
+
+    wasm_path: Optional[str] = Field(None, description="WASM 파일 경로")
+    image_url: Optional[str] = Field(None, description="ECR 이미지 URL")
+    file_path: Optional[str] = Field(None, description="업로드된 파일 경로")
+
+
+class BuildResponse(BaseModel):
+    """빌드 응답"""
+
+    task_id: str = Field(..., description="작업 ID")
+    status: str = Field(..., description="작업 상태: pending|running|completed|failed")
+    message: str = Field(..., description="상태 메시지")
+
+
+class TaskStatusResponse(BaseModel):
+    """작업 상태 조회 응답"""
+
+    task_id: str = Field(..., description="작업 ID")
+    status: str = Field(..., description="작업 상태: pending|running|completed|failed")
+    result: Optional[BuildTaskResult] = Field(None, description="작업 결과")
+    error: Optional[str] = Field(None, description="에러 메시지")
+
+
+class PushRequest(BaseModel):
+    """ECR 푸시 요청"""
+
+    registry_url: str = Field(..., description="ECR 레지스트리 URL")
+    username: str = Field(..., description="레지스트리 사용자명")
+    password: str = Field(..., description="레지스트리 비밀번호")
+    tag: str = Field(default="sha256", description="이미지 태그")
+    app_dir: str = Field(..., description="애플리케이션 디렉토리 경로")
+
+
+class ScaffoldRequest(BaseModel):
+    """SpinApp 매니페스트 생성 요청"""
+
+    image_ref: str = Field(..., description="이미지 참조 (ECR URL:tag)")
+    component: Optional[str] = Field(None, description="컴포넌트 이름")
+    replicas: int = Field(default=1, ge=1, description="레플리카 수")
+    output_path: Optional[str] = Field(None, description="출력 파일 경로")
+
+
+class ScaffoldResponse(BaseModel):
+    """SpinApp 매니페스트 생성 응답"""
+
+    success: bool = Field(..., description="성공 여부")
+    yaml_content: Optional[str] = Field(None, description="생성된 YAML 내용")
+    file_path: Optional[str] = Field(None, description="저장된 파일 경로")
+
+
+class DeployRequest(BaseModel):
+    """K8s 배포 요청"""
+
+    app_name: Optional[str] = Field(None, description="애플리케이션 이름")
+    namespace: str = Field(..., description="Kubernetes 네임스페이스")
+    service_account: Optional[str] = Field(None, description="ServiceAccount 이름")
+    cpu_limit: Optional[str] = Field(None, description="CPU 제한 (예: 500m)")
+    memory_limit: Optional[str] = Field(None, description="메모리 제한 (예: 128Mi)")
+    cpu_request: Optional[str] = Field(None, description="CPU 요청 (예: 100m)")
+    memory_request: Optional[str] = Field(None, description="메모리 요청 (예: 64Mi)")
+    image_ref: str = Field(..., description="이미지 참조 (ECR URL:tag)")
+    enable_autoscaling: bool = Field(default=True, description="HPA/KEDA 오토스케일링 활성화")
+    replicas: int = Field(default=1, ge=1, description="레플리카 수")
+    use_spot: bool = Field(default=True, description="Spot 인스턴스 사용 스케줄링")
+    custom_tolerations: Optional[List[Dict[str, Any]]] = Field(
+        None, description="사용자 정의 tolerations"
+    )
+    custom_affinity: Optional[Dict[str, Any]] = Field(None, description="사용자 정의 affinity")
+
+
+class DeployResponse(BaseModel):
+    """K8s 배포 응답"""
+
+    app_name: str = Field(..., description="배포된 SpinApp 이름")
+    namespace: str = Field(..., description="배포된 네임스페이스")
+    service_name: str = Field(..., description="SpinApp이 자동 생성한 Service 이름")
+    service_status: str = Field(..., description="Service 상태: found|pending|not_found")
+    endpoint: Optional[str] = Field(None, description="Service 엔드포인트")
+    enable_autoscaling: bool = Field(..., description="오토스케일링 활성화 여부")
+    use_spot: bool = Field(..., description="Spot 인스턴스 사용 여부")
+
+
+class BuildAndPushRequest(BaseModel):
+    """빌드 및 푸시 통합 요청"""
+
+    registry_url: str = Field(..., description="ECR 레지스트리 URL")
+    username: str = Field(..., description="레지스트리 사용자명")
+    password: str = Field(..., description="레지스트리 비밀번호")
+    tag: str = Field(default="sha256", description="이미지 태그")
+    app_name: Optional[str] = Field(None, description="애플리케이션 이름")
+
+
 # ===== 에러 응답 모델 =====
 class ErrorDetail(BaseModel):
     """에러 상세"""

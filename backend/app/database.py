@@ -223,6 +223,100 @@ class DynamoDBClient:
         )
         return response.get("Items", [])
 
+    # ===== BuildTask 메서드 =====
+    def create_build_task(
+        self, workspace_id: str, app_name: Optional[str] = None, source_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """빌드 작업 생성"""
+        task_id = shortuuid.uuid()
+        now = datetime.utcnow().isoformat()
+
+        # app_name이 없으면 자동 생성
+        if not app_name:
+            app_name = f"app-{shortuuid.uuid()[:8]}"
+
+        item = {
+            "PK": f"WS#{workspace_id}",
+            "SK": f"BUILD#{task_id}",
+            "Type": "BuildTask",
+            "task_id": task_id,
+            "workspace_id": workspace_id,
+            "app_name": app_name,
+            "status": "pending",
+            "source_code_path": source_path or "",
+            "wasm_path": None,
+            "image_url": None,
+            "error_message": None,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        self.table.put_item(Item=item)
+        return item
+
+    def get_build_task(self, workspace_id: str, task_id: str) -> Optional[Dict[str, Any]]:
+        """빌드 작업 조회"""
+        response = self.table.get_item(
+            Key={"PK": f"WS#{workspace_id}", "SK": f"BUILD#{task_id}"}
+        )
+        return response.get("Item")
+
+    def get_build_task_by_id(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """task_id로 빌드 작업 조회 (workspace_id 불필요)"""
+        # Scan으로 찾기 (비효율적이지만 MVP용)
+        response = self.table.scan(
+            FilterExpression="task_id = :tid AND #type = :type",
+            ExpressionAttributeNames={"#type": "Type"},
+            ExpressionAttributeValues={":tid": task_id, ":type": "BuildTask"},
+        )
+        items = response.get("Items", [])
+        return items[0] if items else None
+
+    def update_build_task_status(
+        self,
+        workspace_id: str,
+        task_id: str,
+        status: str,
+        wasm_path: Optional[str] = None,
+        image_url: Optional[str] = None,
+        error_message: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """빌드 작업 상태 업데이트"""
+        update_expr = ["#status = :status", "updated_at = :now"]
+        expr_values = {":status": status, ":now": datetime.utcnow().isoformat()}
+        expr_names = {"#status": "status"}
+
+        if wasm_path is not None:
+            update_expr.append("wasm_path = :wasm")
+            expr_values[":wasm"] = wasm_path
+
+        if image_url is not None:
+            update_expr.append("image_url = :img")
+            expr_values[":img"] = image_url
+
+        if error_message is not None:
+            update_expr.append("error_message = :err")
+            expr_values[":err"] = error_message
+
+        response = self.table.update_item(
+            Key={"PK": f"WS#{workspace_id}", "SK": f"BUILD#{task_id}"},
+            UpdateExpression="SET " + ", ".join(update_expr),
+            ExpressionAttributeNames=expr_names,
+            ExpressionAttributeValues=expr_values,
+            ReturnValues="ALL_NEW",
+        )
+        return response.get("Attributes")
+
+    def list_build_tasks(self, workspace_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """워크스페이스의 빌드 작업 목록 조회"""
+        response = self.table.query(
+            KeyConditionExpression=Key("PK").eq(f"WS#{workspace_id}")
+            & Key("SK").begins_with("BUILD#"),
+            Limit=limit,
+            ScanIndexForward=False,  # 최신순
+        )
+        return response.get("Items", [])
+
 
 class S3Client:
     """S3 클라이언트"""
@@ -259,6 +353,41 @@ class S3Client:
         """S3에서 함수 코드 삭제"""
         s3_key = f"{workspace_id}/{function_id}.py"
         self.s3.delete_object(Bucket=self.bucket_name, Key=s3_key)
+
+    # ===== Build 관련 메서드 =====
+    def save_build_source(
+        self, workspace_id: str, task_id: str, file_content: bytes, filename: str
+    ) -> str:
+        """빌드 소스 파일 S3에 저장"""
+        # S3 키: build-sources/{workspace_id}/{task_id}/{filename}
+        s3_key = f"build-sources/{workspace_id}/{task_id}/{filename}"
+
+        self.s3.put_object(
+            Bucket=self.bucket_name,
+            Key=s3_key,
+            Body=file_content,
+            ContentType="application/octet-stream",
+        )
+
+        return f"s3://{self.bucket_name}/{s3_key}"
+
+    def get_build_source(self, workspace_id: str, task_id: str, filename: str) -> bytes:
+        """S3에서 빌드 소스 파일 조회"""
+        s3_key = f"build-sources/{workspace_id}/{task_id}/{filename}"
+
+        response = self.s3.get_object(Bucket=self.bucket_name, Key=s3_key)
+        return response["Body"].read()
+
+    def delete_build_source(self, workspace_id: str, task_id: str):
+        """S3에서 빌드 소스 삭제"""
+        # 디렉토리 내 모든 파일 삭제
+        prefix = f"build-sources/{workspace_id}/{task_id}/"
+
+        response = self.s3.list_objects_v2(Bucket=self.bucket_name, Prefix=prefix)
+
+        if "Contents" in response:
+            for obj in response["Contents"]:
+                self.s3.delete_object(Bucket=self.bucket_name, Key=obj["Key"])
 
 
 # 전역 클라이언트 인스턴스

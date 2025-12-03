@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routers import workspaces, functions, logs
+from app.routers import workspaces, functions, logs, builds
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(workspaces.router, prefix="/api", tags=["Workspaces"])
 app.include_router(functions.router, prefix="/api", tags=["Functions"])
 app.include_router(logs.router, prefix="/api", tags=["Logs"])
+app.include_router(builds.router, prefix="/api", tags=["Builds"])
 
 
 @app.get("/")

@@ -173,3 +173,184 @@ export async function getFunctionLogs(workspaceId: string, functionId: string): 
   // Assuming the backend supports query params for limit, e.g. ?limit=100
   return fetchApi<LogItem[]>(`/api/workspaces/${workspaceId}/functions/${functionId}/logs?limit=100`);
 }
+
+// --- Build API ---
+
+export interface BuildTaskResult {
+  wasm_path: string | null;
+  image_url: string | null;
+  file_path: string | null;
+}
+
+export interface BuildResponse {
+  task_id: string;
+  status: string;
+  message: string;
+}
+
+export interface TaskStatusResponse {
+  task_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result: BuildTaskResult | null;
+  error: string | null;
+}
+
+export interface PushRequest {
+  registry_url: string;
+  username: string;
+  password: string;
+  tag?: string;
+  app_dir: string;
+}
+
+export interface ScaffoldRequest {
+  image_ref: string;
+  component?: string;
+  replicas?: number;
+  output_path?: string;
+}
+
+export interface ScaffoldResponse {
+  success: boolean;
+  yaml_content: string | null;
+  file_path: string | null;
+}
+
+export interface DeployRequest {
+  app_name?: string;
+  namespace: string;
+  service_account?: string;
+  cpu_limit?: string;
+  memory_limit?: string;
+  cpu_request?: string;
+  memory_request?: string;
+  image_ref: string;
+  enable_autoscaling?: boolean;
+  replicas?: number;
+  use_spot?: boolean;
+  custom_tolerations?: any[];
+  custom_affinity?: any;
+}
+
+export interface DeployResponse {
+  app_name: string;
+  namespace: string;
+  service_name: string;
+  service_status: string;
+  endpoint: string | null;
+  enable_autoscaling: boolean;
+  use_spot: boolean;
+}
+
+/**
+ * 파일 업로드 및 빌드 시작
+ */
+export async function buildFromFile(
+  file: File,
+  appName?: string,
+  workspaceId: string = 'ws-default'
+): Promise<BuildResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (appName) {
+    formData.append('app_name', appName);
+  }
+  formData.append('workspace_id', workspaceId);
+
+  const url = `${API_BASE_URL}/api/v1/build`;
+  const response = await fetch(url, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch {
+      errorData = null;
+    }
+    throw new ApiError(response.status, response.statusText, errorData);
+  }
+
+  return response.json();
+}
+
+/**
+ * 작업 상태 조회
+ */
+export async function getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
+  return fetchApi<TaskStatusResponse>(`/api/v1/tasks/${taskId}`);
+}
+
+/**
+ * ECR에 이미지 푸시
+ */
+export async function pushToECR(data: PushRequest): Promise<BuildResponse> {
+  return fetchApi<BuildResponse>('/api/v1/push', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * SpinApp 매니페스트 생성
+ */
+export async function scaffoldSpinApp(data: ScaffoldRequest): Promise<ScaffoldResponse> {
+  return fetchApi<ScaffoldResponse>('/api/v1/scaffold', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * K8s에 SpinApp 배포
+ */
+export async function deployToK8s(data: DeployRequest): Promise<DeployResponse> {
+  return fetchApi<DeployResponse>('/api/v1/deploy', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * 빌드 및 푸시 통합
+ */
+export async function buildAndPush(
+  file: File,
+  registryUrl: string,
+  username: string,
+  password: string,
+  tag: string = 'sha256',
+  appName?: string,
+  workspaceId: string = 'ws-default'
+): Promise<BuildResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('registry_url', registryUrl);
+  formData.append('username', username);
+  formData.append('password', password);
+  formData.append('tag', tag);
+  if (appName) {
+    formData.append('app_name', appName);
+  }
+  formData.append('workspace_id', workspaceId);
+
+  const url = `${API_BASE_URL}/api/v1/build-and-push`;
+  const response = await fetch(url, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch {
+      errorData = null;
+    }
+    throw new ApiError(response.status, response.statusText, errorData);
+  }
+
+  return response.json();
+}
