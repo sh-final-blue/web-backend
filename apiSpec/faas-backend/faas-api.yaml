@@ -9,10 +9,13 @@ info:
     - **Workspace 관리**: 함수 그룹을 관리하는 워크스페이스 CRUD
     - **Function 관리**: Python 함수 생성, 수정, 삭제 (Base64 인코딩 코드)
     - **Logs 조회**: 함수 실행 로그 조회
+    - **Build & Deploy**: WASM 빌드, ECR 푸시, SpinApp 배포 (신규 추가)
 
     ## 데이터 저장소
-    - **DynamoDB**: 워크스페이스, 함수 메타데이터, 로그 저장
+    - **DynamoDB**: 워크스페이스, 함수 메타데이터, 로그, 빌드 작업 저장
     - **S3**: 함수 코드 파일 저장 (`s3://bucket/{workspace_id}/{function_id}.py`)
+      - 빌드 소스: `build-sources/{workspace_id}/{task_id}/{filename}`
+      - 빌드 산출물: `build-artifacts/{task_id}/{app_name}.wasm`
 
     ## 인증
     현재는 인증이 구현되어 있지 않습니다 (해커톤 버전).
@@ -38,6 +41,8 @@ tags:
     description: 함수 관리 API
   - name: Logs
     description: 함수 실행 로그 조회 API
+  - name: Build & Deploy
+    description: WASM 빌드, ECR 푸시, SpinApp 배포 API
 
 paths:
   # ===== Health Check =====
@@ -297,6 +302,216 @@ paths:
           description: 삭제 성공
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # ===== Build & Deploy =====
+  /api/v1/build:
+    post:
+      tags:
+        - Build & Deploy
+      summary: 파일 업로드 및 빌드 시작
+      description: |
+        .py 파일 또는 .zip 아카이브를 업로드하고 WASM 빌드를 시작합니다.
+        - 비동기 작업으로 즉시 task_id 반환
+        - 상태 조회는 GET /api/v1/tasks/{task_id} 사용
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: .py 파일 또는 .zip 아카이브
+                app_name:
+                  type: string
+                  description: 애플리케이션 이름 (미지정시 자동 생성)
+                  example: my-app
+                workspace_id:
+                  type: string
+                  description: 워크스페이스 ID
+                  default: ws-default
+                  example: ws-UEjecyZM
+      responses:
+        '202':
+          description: 빌드 작업 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/tasks/{task_id}:
+    get:
+      tags:
+        - Build & Deploy
+      summary: 작업 상태 조회
+      description: |
+        빌드/푸시/배포 작업의 현재 상태를 조회합니다.
+        - 상태: pending | running | completed | failed
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          description: 작업 ID
+          schema:
+            type: string
+            example: 550e8400-e29b-41d4-a716-446655440000
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStatusResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/push:
+    post:
+      tags:
+        - Build & Deploy
+      summary: ECR에 이미지 푸시
+      description: |
+        빌드된 이미지를 ECR(Elastic Container Registry)에 푸시합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRequest'
+      responses:
+        '202':
+          description: 푸시 작업 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/scaffold:
+    post:
+      tags:
+        - Build & Deploy
+      summary: SpinApp 매니페스트 생성
+      description: |
+        Spin Kubernetes 오퍼레이터용 SpinApp 매니페스트 YAML을 생성합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScaffoldRequest'
+      responses:
+        '200':
+          description: 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScaffoldResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/deploy:
+    post:
+      tags:
+        - Build & Deploy
+      summary: K8s에 SpinApp 배포
+      description: |
+        Kubernetes 클러스터에 SpinApp을 배포합니다.
+        - HPA/KEDA 오토스케일링 지원
+        - Spot 인스턴스 스케줄링 지원
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeployRequest'
+      responses:
+        '200':
+          description: 배포 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeployResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/build-and-push:
+    post:
+      tags:
+        - Build & Deploy
+      summary: 빌드 및 푸시 통합
+      description: |
+        빌드와 ECR 푸시를 한 번에 수행합니다.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+                - registry_url
+                - username
+                - password
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: .py 파일 또는 .zip 아카이브
+                registry_url:
+                  type: string
+                  description: ECR 레지스트리 URL
+                  example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com
+                username:
+                  type: string
+                  description: 레지스트리 사용자명
+                  example: AWS
+                password:
+                  type: string
+                  description: 레지스트리 비밀번호
+                  example: eyJwYXlsb2FkIjoiY...
+                tag:
+                  type: string
+                  description: 이미지 태그
+                  default: sha256
+                  example: v1.0.0
+                app_name:
+                  type: string
+                  description: 애플리케이션 이름
+                  example: my-app
+                workspace_id:
+                  type: string
+                  description: 워크스페이스 ID
+                  default: ws-default
+                  example: ws-UEjecyZM
+      responses:
+        '202':
+          description: 빌드 및 푸시 작업 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   # ===== Logs =====
   /api/workspaces/{workspace_id}/functions/{function_id}/logs:
@@ -687,6 +902,238 @@ components:
           type: integer
           description: 총 로그 개수
           example: 50
+
+    # ===== Build & Deploy Schemas =====
+    BuildResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: 작업 ID (UUID)
+          example: 550e8400-e29b-41d4-a716-446655440000
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: 작업 상태
+          example: pending
+        message:
+          type: string
+          description: 상태 메시지
+          example: Build task created
+
+    TaskStatusResponse:
+      type: object
+      properties:
+        task_id:
+          type: string
+          description: 작업 ID
+          example: 550e8400-e29b-41d4-a716-446655440000
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+          description: 작업 상태
+          example: completed
+        result:
+          type: object
+          nullable: true
+          description: 작업 결과 (완료 시)
+          properties:
+            wasm_path:
+              type: string
+              nullable: true
+              description: WASM 파일 경로
+              example: /path/to/app.wasm
+            image_url:
+              type: string
+              nullable: true
+              description: ECR 이미지 URL
+              example: ecr.aws/repo:tag
+            file_path:
+              type: string
+              nullable: true
+              description: 업로드된 파일 경로
+              example: s3://bucket/build-sources/ws-id/task-id/file.zip
+        error:
+          type: string
+          nullable: true
+          description: 에러 메시지 (실패 시)
+          example: Build failed: invalid syntax
+
+    PushRequest:
+      type: object
+      required:
+        - registry_url
+        - username
+        - password
+        - app_dir
+      properties:
+        registry_url:
+          type: string
+          description: ECR 레지스트리 URL
+          example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com
+        username:
+          type: string
+          description: 레지스트리 사용자명
+          example: AWS
+        password:
+          type: string
+          description: 레지스트리 비밀번호
+          example: eyJwYXlsb2FkIjoiY...
+        tag:
+          type: string
+          description: 이미지 태그
+          default: sha256
+          example: v1.0.0
+        app_dir:
+          type: string
+          description: 애플리케이션 디렉토리 경로
+          example: /path/to/app
+
+    ScaffoldRequest:
+      type: object
+      required:
+        - image_ref
+      properties:
+        image_ref:
+          type: string
+          description: 이미지 참조 (ECR URL:tag)
+          example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/my-app:v1.0.0
+        component:
+          type: string
+          description: 컴포넌트 이름
+          example: my-component
+        replicas:
+          type: integer
+          minimum: 1
+          default: 1
+          description: 레플리카 수
+          example: 3
+        output_path:
+          type: string
+          description: 출력 파일 경로
+          example: /tmp/spinapp.yaml
+
+    ScaffoldResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 성공 여부
+          example: true
+        yaml_content:
+          type: string
+          nullable: true
+          description: 생성된 YAML 내용
+          example: |
+            apiVersion: core.spinoperator.dev/v1alpha1
+            kind: SpinApp
+            metadata:
+              name: my-app
+            spec:
+              image: ecr.aws/repo:tag
+              replicas: 1
+        file_path:
+          type: string
+          nullable: true
+          description: 저장된 파일 경로
+          example: /tmp/spinapp.yaml
+
+    DeployRequest:
+      type: object
+      required:
+        - namespace
+        - image_ref
+      properties:
+        app_name:
+          type: string
+          description: 애플리케이션 이름 (미지정시 Faker 자동 생성)
+          example: my-spin-app
+        namespace:
+          type: string
+          description: Kubernetes 네임스페이스
+          example: default
+        service_account:
+          type: string
+          description: ServiceAccount 이름
+          example: spin-service-account
+        cpu_limit:
+          type: string
+          description: CPU 제한 (예 500m)
+          example: 500m
+        memory_limit:
+          type: string
+          description: 메모리 제한 (예 128Mi)
+          example: 128Mi
+        cpu_request:
+          type: string
+          description: CPU 요청 (예 100m)
+          example: 100m
+        memory_request:
+          type: string
+          description: 메모리 요청 (예 64Mi)
+          example: 64Mi
+        image_ref:
+          type: string
+          description: 이미지 참조 (ECR URL:tag)
+          example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/my-app:v1.0.0
+        enable_autoscaling:
+          type: boolean
+          default: true
+          description: HPA/KEDA 오토스케일링 활성화
+          example: true
+        replicas:
+          type: integer
+          minimum: 1
+          default: 1
+          description: 레플리카 수 (enable_autoscaling=false일 때만)
+          example: 3
+        use_spot:
+          type: boolean
+          default: true
+          description: Spot 인스턴스 사용 스케줄링
+          example: true
+        custom_tolerations:
+          type: array
+          items:
+            type: object
+          description: 사용자 정의 tolerations
+        custom_affinity:
+          type: object
+          description: 사용자 정의 affinity
+
+    DeployResponse:
+      type: object
+      properties:
+        app_name:
+          type: string
+          description: 배포된 SpinApp 이름
+          example: my-spin-app
+        namespace:
+          type: string
+          description: 배포된 네임스페이스
+          example: default
+        service_name:
+          type: string
+          description: SpinApp이 자동 생성한 Service 이름
+          example: my-spin-app-service
+        service_status:
+          type: string
+          enum: [found, pending, not_found]
+          description: Service 상태
+          example: found
+        endpoint:
+          type: string
+          nullable: true
+          description: Service 엔드포인트
+          example: my-spin-app.default.svc.cluster.local
+        enable_autoscaling:
+          type: boolean
+          description: 오토스케일링 활성화 여부
+          example: true
+        use_spot:
+          type: boolean
+          description: Spot 인스턴스 사용 여부
+          example: true
 
     # ===== Error Schemas =====
     ErrorResponse:

@@ -79,9 +79,13 @@
       <p>
         Function as a Service 플랫폼 백엔드 API 문서입니다.
         <br>
-        <strong>완성된 기능:</strong> Workspace CRUD, Function CRUD, Logs 조회
+        <strong>완성된 기능:</strong>
         <br>
-        <strong>대기 중:</strong> 함수 실행 엔드포인트 (K3s 클러스터 구축 후 추가 예정)
+        • Workspace CRUD, Function CRUD, Logs 조회
+        <br>
+        • Build & Deploy API (WASM 빌드, ECR 푸시, SpinApp 배포) ✨ 신규 추가
+        <br>
+        <strong>대기 중:</strong> Core Services 통합 (인프라 팀과 협의 중)
       </p>
       <button onclick="loadSwagger('apiSpec/faas-backend/faas-api.yaml')">faas-api.yaml</button>
     </div>

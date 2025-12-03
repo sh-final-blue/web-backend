@@ -30,6 +30,10 @@
   - POST /api/v1/build-and-push (build + push integration)
 - [x] Build router registration in main.py
 - [x] Shared DynamoDB schema with Hyunmin Cho and requested infrastructure info
+- [x] Frontend API integration functions (frontend/src/lib/api.ts)
+  - buildFromFile, getTaskStatus, pushToECR
+  - scaffoldSpinApp, deployToK8s, buildAndPush
+  - TypeScript type definitions matching backend models
 
 ### 3. Documentation
 - [x] README.md (overall project guide)
@@ -92,66 +96,80 @@ curl http://localhost:8000/health
 
 ### ⏳ Infrastructure Integration Pending
 
-#### 1. Infrastructure Service Endpoint Integration ⭐⭐⭐
-**Current Status**: Mock implementation completed, waiting for actual services
-**Required Info**: (Requested from Hyunmin Cho)
-- Build Service endpoint
-- Push Service endpoint
-- Scaffold Service endpoint
-- Deploy Service endpoint
+#### 1. Core Services Integration Method Clarification ⭐⭐⭐
+**Current Status**: Mock implementation completed, waiting for integration method clarification
+**Required Info**: (Requested from Hyunmin Cho - 2025-12-04)
 
-**Work to do**:
+Based on the architecture diagram (빌드앱구조API.pdf), FastAPI Server needs to interact with Core Services:
+- Validation Service (MyPy)
+- Build Service (spin build)
+- Push Service (spin registry)
+- Scaffold Service (spin kube scaffold)
+- Deploy Service (kubectl apply)
+
+**Questions to Hyunmin Cho**:
+1. **Integration Method**:
+   - Option A: HTTP API calls to separate services (e.g., `http://build-service:8080/build`)
+   - Option B: Direct CLI command execution (e.g., subprocess running `spin build`)
+
+2. **Polling Implementation**:
+   - If HTTP API: Which endpoint to poll for task status?
+   - If CLI: Should we check filesystem/S3 for completion?
+
+**Work to do** (after clarification):
 ```python
 # backend/app/routers/builds.py
 # TODO comments marked sections:
-# - _mock_build_process() -> replace with actual build service call
-# - _mock_push_process() -> replace with actual push service call
-# - scaffold_spinapp() -> replace with actual scaffold service call
-# - deploy_to_k8s() -> replace with actual deploy service call
+# - _mock_build_process() -> replace with actual integration method
+# - _mock_push_process() -> replace with actual integration method
+# - scaffold_spinapp() -> replace with actual integration method
+# - deploy_to_k8s() -> replace with actual integration method
 ```
 
 **Owner**: Seongwoo Choi (after Hyunmin Cho's response)
 
-#### 2. Environment Variables Addition ⭐⭐
-**Required Info**: (Requested from Hyunmin Cho)
-- ECR Registry URL
-- ECR Repository name
-- Build service endpoints
+#### 2. Configuration Update (If Needed) ⭐
+**Current Status**: Pending Core Services integration method clarification
 
-**Work to do**:
+**Important Note**:
+- ECR credentials (registry_url, username, password) are passed as **API request parameters** (see PDF page 3: POST /api/v1/push)
+- NOT environment variables
+
+**Potential Environment Variables** (depends on integration method):
 ```python
-# Add to backend/app/config.py
+# Add to backend/app/config.py (if using HTTP API approach)
 class Settings(BaseSettings):
     # Existing settings...
 
-    # Build Infrastructure (need to add)
-    build_service_url: str = ""
+    # Build Infrastructure (only if using HTTP services)
+    build_service_url: str = ""  # Optional: if Core Services are HTTP endpoints
     push_service_url: str = ""
     scaffold_service_url: str = ""
     deploy_service_url: str = ""
-    ecr_registry_url: str = ""
-    ecr_repository: str = ""
 ```
 
-**Owner**: Seongwoo Choi (after Hyunmin Cho's response)
+**Owner**: Seongwoo Choi (after integration method confirmed)
 
 #### 3. Async Task Status Update Implementation ⭐⭐
 **Decision Made**: ✅ **Polling Method**
 **Recommended by**: Hyunmin Cho (Infrastructure Team)
 
+**Status**: Implementation depends on Core Services integration method
+
 **Work to do**:
-- Implement periodic polling to infrastructure services
+- Implement periodic polling mechanism
 - Check task status at regular intervals (e.g., every 5 seconds)
 - Update DynamoDB task status based on infrastructure response
 - Handle timeout and error cases
 
-**Implementation Details**:
+**Implementation Details** (will vary based on integration method):
 ```python
-# Pseudo-code for polling implementation
-async def poll_task_status(task_id: str, max_attempts: int = 120):
+# Option A: HTTP API polling
+async def poll_task_status_http(task_id: str, max_attempts: int = 120):
     for attempt in range(max_attempts):
-        # Call infrastructure service to get status
-        status = await infrastructure_service.get_task_status(task_id)
+        # Call Core Service HTTP API
+        response = await http_client.get(f"{service_url}/tasks/{task_id}")
+        status = response.json()["status"]
 
         # Update DynamoDB
         db_client.update_build_task_status(...)
@@ -159,10 +177,25 @@ async def poll_task_status(task_id: str, max_attempts: int = 120):
         if status in ['completed', 'failed']:
             break
 
-        await asyncio.sleep(5)  # Poll every 5 seconds
+        await asyncio.sleep(5)
+
+# Option B: Filesystem/S3 polling
+async def poll_task_status_fs(task_id: str, max_attempts: int = 120):
+    for attempt in range(max_attempts):
+        # Check S3 for build artifacts
+        wasm_exists = await s3_client.check_file_exists(
+            f"build-artifacts/{task_id}/app.wasm"
+        )
+
+        if wasm_exists:
+            # Update DynamoDB to completed
+            db_client.update_build_task_status(...)
+            break
+
+        await asyncio.sleep(5)
 ```
 
-**Owner**: Seongwoo Choi (after receiving infrastructure endpoints)
+**Owner**: Seongwoo Choi (after Core Services integration method confirmed)
 
 ---
 
@@ -190,14 +223,18 @@ http://localhost:8000/docs
 ```
 
 ### 2. Frontend Integration ⭐⭐⭐
-**Current Status**: Not integrated
+**Current Status**: API functions implemented, UI integration pending
 **Owner**: Seongwoo Choi
 
+**Completed**:
+- ✅ API client functions in `frontend/src/lib/api.ts`
+- ✅ TypeScript type definitions matching backend models
+- ✅ CORS configuration (localhost:3000, localhost:5173 allowed)
+
 **Required Work**:
-- Call `http://localhost:8000/api/v1/build` from frontend
-- File upload UI integration
-- Task status polling implementation
-- CORS verification (currently: localhost:3000, localhost:5173 allowed)
+- Build upload UI component integration
+- Task status polling UI implementation
+- Error handling and user feedback
 
 ### 3. ECR Image Upload ⭐
 **Current Status**: Not uploaded
@@ -261,12 +298,11 @@ Build Artifacts (expected):
    - File storage path rules
    - Async task status update method
 
-#### Response from Hyunmin Cho (Evening)
+#### Response from Hyunmin Cho (Afternoon 1:36 PM)
 **Status**: Partially resolved ✅
 
 1. **Infrastructure Service Endpoints** ⏰
-   - Will be confirmed and shared
-   - Expected to be available in the evening
+   - Will be confirmed and shared in the evening
    - Likely documented in API documentation
 
 2. **S3 Path & ECR Information**
@@ -280,10 +316,41 @@ Build Artifacts (expected):
    - Backend will periodically check infrastructure service for task status
    - Recommended by infrastructure team
 
+#### Hyunmin Cho shared "빌드앱구조API.pdf" (Evening 10:35 PM)
+**Status**: Architecture and API specification received ✅
+
+1. **Architecture Diagram** ✅
+   - Client (Web UI/CLI)
+   - FastAPI Server (REST API Layer, Background Task Manager, Task Store)
+   - Core Services (Validation, Build, Push, Scaffold, Deploy)
+   - External Systems (WASM Template, AWS ECR, Kubernetes Cluster)
+
+2. **REST API Specification** ✅
+   - Confirms our implemented endpoints match the spec
+   - All request/response models validated
+
+3. **Still Unclear** ⏰
+   - How FastAPI Server should call Core Services (HTTP vs CLI)
+   - DynamoDB usage by Core Services
+   - Polling implementation details
+
+### 2025-12-04
+
+#### Follow-up Questions to Hyunmin Cho (Morning)
+**Status**: Waiting for response ⏰
+
+Asked for clarification on:
+1. **Core Services Integration Method**
+   - Option A: HTTP API endpoints?
+   - Option B: Direct CLI command execution?
+
+2. **Polling Implementation Details**
+   - If HTTP: Which endpoint to poll for status?
+   - If CLI: Should we monitor filesystem/S3?
+
 **Next Steps**:
-- Wait for evening update with:
-  - Infrastructure service endpoints (Build, Push, Scaffold, Deploy)
-  - ECR registry URL and repository name
+- Wait for Hyunmin Cho's clarification on integration method
+- Implement actual Core Services integration once method is confirmed
 
 ---
 
@@ -294,11 +361,11 @@ Build Artifacts (expected):
 2. Frontend integration work
 3. ECR backend image upload
 
-### Priority 2: After Infrastructure Info Received
-1. Environment variables addition (config.py)
-2. Replace Mock functions with actual service calls
-3. Async task status update implementation
-4. Integration testing
+### Priority 2: After Core Services Integration Method Confirmed
+1. Implement actual Core Services integration (HTTP or CLI)
+2. Async task status polling implementation
+3. Configuration updates (if needed)
+4. Integration testing with actual Core Services
 
 ### Priority 3: Deployment and Monitoring
 1. K3s deployment (Infrastructure Engineer)
@@ -347,6 +414,6 @@ Build Artifacts (expected):
 
 ---
 
-**Last Update**: 2025-12-03
+**Last Update**: 2025-12-04
 **Author**: Seongwoo Choi
-**Status**: Waiting for Hyunmin Cho's response
+**Status**: Waiting for Core Services integration method clarification from Hyunmin Cho
