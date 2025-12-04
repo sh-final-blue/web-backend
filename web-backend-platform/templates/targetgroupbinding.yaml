@@ -6,6 +6,7 @@ metadata:
   labels:
     {{- include "web-backend.labels" . | nindent 4 }}
 spec:
+  targetType: ip
   serviceRef:
     name: {{ include "web-backend.fullname" . }}
     port: {{ .Values.service.port }}
