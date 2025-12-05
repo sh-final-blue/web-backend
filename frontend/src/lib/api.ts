@@ -359,7 +359,7 @@ export async function buildAndPush(
   file: File,
   registryUrl: string,
   username: string,
-  password: string,
+  password: string | null = null,
   tag: string = 'sha256',
   appName?: string,
   workspaceId: string = 'ws-default'
@@ -368,7 +368,9 @@ export async function buildAndPush(
   formData.append('file', file);
   formData.append('registry_url', registryUrl);
   formData.append('username', username);
-  formData.append('password', password);
+  if (password !== null && password !== '') {
+    formData.append('password', password);
+  }
   formData.append('tag', tag);
   if (appName) {
     formData.append('app_name', appName);
