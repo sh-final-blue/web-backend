@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Builder Service (Core Services)
     builder_service_url: str = "https://builder.eunha.icu"
 
+    # Loki Log Service
+    loki_service_url: str = "http://loki-stack.logging.svc.cluster.local:3100"
+
     class Config:
         env_file = ".env"
         case_sensitive = False

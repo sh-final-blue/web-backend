@@ -1,8 +1,10 @@
 """Logs API 라우터"""
 from fastapi import APIRouter, HTTPException, status, Query
-from app.models import LogsResponse, ExecutionLog
+from app.models import LogsResponse, ExecutionLog, LokiLogsResponse, LokiLogEntry
 from app.database import db_client
+from app.config import settings
 from datetime import datetime
+import httpx
 
 router = APIRouter()
 
@@ -51,4 +53,61 @@ async def get_function_logs(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": {"code": "LIST_ERROR", "message": str(e)}},
+        )
+
+
+@router.get("/functions/{function_id}/loki-logs", response_model=LokiLogsResponse)
+async def get_loki_logs(
+    function_id: str, limit: int = Query(default=100, le=1000, ge=1)
+):
+    """Loki에서 function_id로 실시간 로그 조회"""
+    try:
+        # Loki API 호출
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            loki_url = f"{settings.loki_service_url}/loki/api/v1/query_range"
+            params = {
+                "query": f'{{function_id="{function_id}"}}',
+                "limit": limit,
+            }
+
+            response = await client.get(loki_url, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+        # Loki 응답 파싱
+        logs = []
+        if data.get("status") == "success":
+            result = data.get("data", {}).get("result", [])
+            for stream in result:
+                values = stream.get("values", [])
+                for value in values:
+                    # value = [timestamp_nanoseconds, log_line]
+                    if len(value) >= 2:
+                        logs.append(
+                            LokiLogEntry(timestamp=value[0], line=value[1])
+                        )
+
+        return LokiLogsResponse(
+            logs=logs, total=len(logs), function_id=function_id
+        )
+
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "LOKI_CONNECTION_ERROR",
+                    "message": f"로그 시스템 연결 불가: {str(e)}",
+                }
+            },
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "LOKI_ERROR",
+                    "message": f"로그 조회 실패: {str(e)}",
+                }
+            },
         )

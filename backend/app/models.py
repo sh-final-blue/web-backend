@@ -108,6 +108,22 @@ class LogsResponse(BaseModel):
     total: int
 
 
+# ===== Loki Log 모델 =====
+class LokiLogEntry(BaseModel):
+    """Loki 로그 엔트리"""
+
+    timestamp: str = Field(..., description="로그 타임스탬프 (나노초)")
+    line: str = Field(..., description="로그 메시지")
+
+
+class LokiLogsResponse(BaseModel):
+    """Loki 로그 조회 응답"""
+
+    logs: List[LokiLogEntry] = Field(default_factory=list, description="로그 목록")
+    total: int = Field(..., description="전체 로그 수")
+    function_id: str = Field(..., description="함수 ID")
+
+
 # ===== BuildTask 모델 =====
 class BuildTaskResult(BaseModel):
     """빌드 작업 결과"""
