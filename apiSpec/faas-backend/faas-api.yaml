@@ -1,156 +1,91 @@
-# 작성자: 최성우
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: FaaS Backend API
-  description: |
-    소프트뱅크 해커톤 FaaS (Function as a Service) 플랫폼 백엔드 API
-
-    ## 주요 기능
-    - **Workspace 관리**: 함수 그룹을 관리하는 워크스페이스 CRUD
-    - **Function 관리**: Python 함수 생성, 수정, 삭제 (Base64 인코딩 코드)
-    - **Logs 조회**: 함수 실행 로그 조회
-    - **Build & Deploy**: WASM 빌드, ECR 푸시, SpinApp 배포 (신규 추가)
-
-    ## 데이터 저장소
-    - **DynamoDB**: 워크스페이스, 함수 메타데이터, 로그, 빌드 작업 저장
-    - **S3**: 함수 코드 파일 저장 (`s3://bucket/{workspace_id}/{function_id}.py`)
-      - 빌드 소스: `build-sources/{workspace_id}/{task_id}/{filename}`
-      - 빌드 산출물: `build-artifacts/{task_id}/{app_name}.wasm`
-
-    ## 인증
-    현재는 인증이 구현되어 있지 않습니다 (해커톤 버전).
-
-    ## 환경
-    - **로컬 개발**: `http://localhost:8000`
-    - **프로덕션**: `https://api.eunha.icu` (현재 배포 중)
+  description: Function as a Service Backend API for Softbank Hackathon
   version: 1.0.0
-  contact:
-    name: 최성우
-    email: bluew@example.com
-
-servers:
-  - url: https://api.eunha.icu
-    description: 프로덕션 서버 (HTTPS)
-  - url: http://localhost:8000
-    description: 로컬 개발 서버
-
-tags:
-  - name: Workspaces
-    description: 워크스페이스 관리 API
-  - name: Functions
-    description: 함수 관리 API
-  - name: Logs
-    description: 함수 실행 로그 조회 API
-  - name: Build & Deploy
-    description: WASM 빌드, ECR 푸시, SpinApp 배포 API
-
 paths:
-  # ===== Health Check =====
-  /:
-    get:
-      summary: 헬스 체크
-      description: API 서버 상태 확인
-      responses:
-        '200':
-          description: 정상 작동
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-                  message:
-                    type: string
-                    example: FaaS Backend API is running
-                  environment:
-                    type: string
-                    example: development
-
-  /health:
-    get:
-      summary: 헬스 체크 엔드포인트
-      description: Kubernetes 헬스 프로브용
-      responses:
-        '200':
-          description: 정상 상태
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: healthy
-
-  # ===== Workspaces =====
   /api/workspaces:
     get:
       tags:
-        - Workspaces
-      summary: 워크스페이스 목록 조회
-      description: 모든 워크스페이스 목록을 반환합니다
+      - Workspaces
+      summary: List Workspaces
+      description: ''
+      operationId: list_workspaces_api_workspaces_get
       responses:
         '200':
-          description: 성공
+          description: Successful Response
           content:
             application/json:
               schema:
-                type: array
                 items:
                   $ref: '#/components/schemas/Workspace'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
+                type: array
+                title: Response List Workspaces Api Workspaces Get
     post:
       tags:
-        - Workspaces
-      summary: 워크스페이스 생성
-      description: 새로운 워크스페이스를 생성합니다
+      - Workspaces
+      summary: Create Workspace
+      description: ''
+      operationId: create_workspace_api_workspaces_post
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/WorkspaceCreate'
+        required: true
       responses:
         '201':
-          description: 생성 성공
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Workspace'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/workspaces/{workspace_id}:
     get:
       tags:
-        - Workspaces
-      summary: 워크스페이스 조회
-      description: 특정 워크스페이스의 상세 정보를 조회합니다
+      - Workspaces
+      summary: Get Workspace
+      description: ''
+      operationId: get_workspace_api_workspaces__workspace_id__get
       parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
       responses:
         '200':
-          description: 성공
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Workspace'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     patch:
       tags:
-        - Workspaces
-      summary: 워크스페이스 수정
-      description: 워크스페이스 정보를 수정합니다
+      - Workspaces
+      summary: Update Workspace
+      description: ''
+      operationId: update_workspace_api_workspaces__workspace_id__patch
       parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
       requestBody:
         required: true
         content:
@@ -159,63 +94,53 @@ paths:
               $ref: '#/components/schemas/WorkspaceUpdate'
       responses:
         '200':
-          description: 수정 성공
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Workspace'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-    delete:
-      tags:
-        - Workspaces
-      summary: 워크스페이스 삭제
-      description: 워크스페이스와 관련된 모든 함수를 삭제합니다
-      parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
-      responses:
-        '204':
-          description: 삭제 성공
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ===== Functions =====
-  /api/workspaces/{workspace_id}/functions:
-    get:
-      tags:
-        - Functions
-      summary: 함수 목록 조회
-      description: 워크스페이스 내 모든 함수 목록을 반환합니다
-      parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
-      responses:
-        '200':
-          description: 성공
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/FunctionConfig'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - Workspaces
+      summary: Delete Workspace
+      description: ''
+      operationId: delete_workspace_api_workspaces__workspace_id__delete
+      parameters:
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/workspaces/{workspace_id}/functions:
     post:
       tags:
-        - Functions
-      summary: 함수 생성
-      description: |
-        새로운 함수를 생성합니다.
-        - Python 코드는 **Base64 인코딩**하여 전송해야 합니다
-        - DynamoDB에 메타데이터 저장
-        - S3에 코드 파일 저장
+      - Functions
+      summary: Create Function
+      description: ''
+      operationId: create_function_api_workspaces__workspace_id__functions_post
       parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
       requestBody:
         required: true
         content:
@@ -224,48 +149,99 @@ paths:
               $ref: '#/components/schemas/FunctionCreate'
       responses:
         '201':
-          description: 생성 성공
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FunctionConfig'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Functions
+      summary: List Functions
+      description: ''
+      operationId: list_functions_api_workspaces__workspace_id__functions_get
+      parameters:
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FunctionConfig'
+                title: Response List Functions Api Workspaces  Workspace Id  Functions
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/workspaces/{workspace_id}/functions/{function_id}:
     get:
       tags:
-        - Functions
-      summary: 함수 상세 조회
-      description: 특정 함수의 상세 정보를 조회합니다
+      - Functions
+      summary: Get Function
+      description: ''
+      operationId: get_function_api_workspaces__workspace_id__functions__function_id__get
       parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/FunctionId'
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
+      - name: function_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Function Id
       responses:
         '200':
-          description: 성공
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FunctionConfig'
-        '404':
-          $ref: '#/components/responses/NotFound'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     patch:
       tags:
-        - Functions
-      summary: 함수 수정
-      description: |
-        함수 정보를 수정합니다.
-        - `code` 수정 시 Base64 인코딩 필요
-        - S3 코드 파일도 함께 업데이트됨
+      - Functions
+      summary: Update Function
+      description: ''
+      operationId: update_function_api_workspaces__workspace_id__functions__function_id__patch
       parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/FunctionId'
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
+      - name: function_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Function Id
       requestBody:
         required: true
         content:
@@ -274,927 +250,1028 @@ paths:
               $ref: '#/components/schemas/FunctionUpdate'
       responses:
         '200':
-          description: 수정 성공
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/FunctionConfig'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     delete:
       tags:
-        - Functions
-      summary: 함수 삭제
-      description: |
-        함수를 삭제합니다.
-        - DynamoDB 메타데이터 삭제
-        - S3 코드 파일 삭제
+      - Functions
+      summary: Delete Function
+      description: ''
+      operationId: delete_function_api_workspaces__workspace_id__functions__function_id__delete
       parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/FunctionId'
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
+      - name: function_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Function Id
       responses:
         '204':
-          description: 삭제 성공
-        '404':
-          $ref: '#/components/responses/NotFound'
-
-  # ===== Build & Deploy =====
-  /api/v1/build:
-    post:
-      tags:
-        - Build & Deploy
-      summary: 파일 업로드 및 빌드 시작
-      description: |
-        .py 파일 또는 .zip 아카이브를 업로드하고 WASM 빌드를 시작합니다.
-        - 비동기 작업으로 즉시 task_id 반환
-        - 상태 조회는 GET /api/v1/tasks/{task_id} 사용
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: .py 파일 또는 .zip 아카이브
-                app_name:
-                  type: string
-                  description: 애플리케이션 이름 (미지정시 자동 생성)
-                  example: my-app
-                workspace_id:
-                  type: string
-                  description: 워크스페이스 ID
-                  default: ws-default
-                  example: ws-UEjecyZM
-      responses:
-        '202':
-          description: 빌드 작업 생성 성공
+          description: Successful Response
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BuildResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/tasks/{task_id}:
-    get:
-      tags:
-        - Build & Deploy
-      summary: 작업 상태 조회
-      description: |
-        빌드/푸시/배포 작업의 현재 상태를 조회합니다.
-        - 상태: pending | running | completed | failed
-      parameters:
-        - name: task_id
-          in: path
-          required: true
-          description: 작업 ID
-          schema:
-            type: string
-            example: 550e8400-e29b-41d4-a716-446655440000
-      responses:
-        '200':
-          description: 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TaskStatusResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/push:
-    post:
-      tags:
-        - Build & Deploy
-      summary: ECR에 이미지 푸시
-      description: |
-        빌드된 이미지를 ECR(Elastic Container Registry)에 푸시합니다.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PushRequest'
-      responses:
-        '202':
-          description: 푸시 작업 생성 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BuildResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/scaffold:
-    post:
-      tags:
-        - Build & Deploy
-      summary: SpinApp 매니페스트 생성
-      description: |
-        Spin Kubernetes 오퍼레이터용 SpinApp 매니페스트 YAML을 생성합니다.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ScaffoldRequest'
-      responses:
-        '200':
-          description: 생성 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScaffoldResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/deploy:
-    post:
-      tags:
-        - Build & Deploy
-      summary: K8s에 SpinApp 배포
-      description: |
-        Kubernetes 클러스터에 SpinApp을 배포합니다.
-        - HPA/KEDA 오토스케일링 지원
-        - Spot 인스턴스 스케줄링 지원
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeployRequest'
-      responses:
-        '200':
-          description: 배포 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DeployResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  /api/v1/build-and-push:
-    post:
-      tags:
-        - Build & Deploy
-      summary: 빌드 및 푸시 통합
-      description: |
-        빌드와 ECR 푸시를 한 번에 수행합니다.
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-                - registry_url
-                - username
-                - password
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: .py 파일 또는 .zip 아카이브
-                registry_url:
-                  type: string
-                  description: ECR 레지스트리 URL
-                  example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com
-                username:
-                  type: string
-                  description: 레지스트리 사용자명
-                  example: AWS
-                password:
-                  type: string
-                  description: 레지스트리 비밀번호
-                  example: eyJwYXlsb2FkIjoiY...
-                tag:
-                  type: string
-                  description: 이미지 태그
-                  default: sha256
-                  example: v1.0.0
-                app_name:
-                  type: string
-                  description: 애플리케이션 이름
-                  example: my-app
-                workspace_id:
-                  type: string
-                  description: 워크스페이스 ID
-                  default: ws-default
-                  example: ws-UEjecyZM
-      responses:
-        '202':
-          description: 빌드 및 푸시 작업 생성 성공
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BuildResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-
-  # ===== Logs =====
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/workspaces/{workspace_id}/functions/{function_id}/logs:
     get:
       tags:
-        - Logs
-      summary: 함수 실행 로그 조회
-      description: |
-        함수 실행 로그를 최신순으로 조회합니다.
-        - 최대 1000개까지 조회 가능
-        - 기본값: 100개
+      - Logs
+      summary: Get Function Logs
+      description: ''
+      operationId: get_function_logs_api_workspaces__workspace_id__functions__function_id__logs_get
       parameters:
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/FunctionId'
-        - name: limit
-          in: query
-          description: 조회할 로그 개수
-          required: false
-          schema:
-            type: integer
-            default: 100
-            minimum: 1
-            maximum: 1000
+      - name: workspace_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workspace Id
+      - name: function_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Function Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          default: 100
+          title: Limit
       responses:
         '200':
-          description: 성공
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LogsResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/build:
+    post:
+      tags:
+      - Builds
+      summary: Build
+      description: '- **file**: .py   .zip  ()
 
+        - **app_name**:   (,   )
+
+        - **workspace_id**:  ID (: ws-default)'
+      operationId: build_api_v1_build_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_build_api_v1_build_post'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tasks/{task_id}:
+    get:
+      tags:
+      - Builds
+      summary: Get Task Status
+      description: '- **task_id**:  ID'
+      operationId: get_task_status_api_v1_tasks__task_id__get
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskStatusResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/push:
+    post:
+      tags:
+      - Builds
+      summary: Push To Ecr
+      description: "ECR  \n\n- **registry_url**: ECR  URL\n- **username**:  \n- **password**:\
+        \  \n- **tag**:  \n- **app_dir**:"
+      operationId: push_to_ecr_api_v1_push_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRequest'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/scaffold:
+    post:
+      tags:
+      - Builds
+      summary: Scaffold Spinapp
+      description: "SpinApp  \n\n- **image_ref**:   (ECR URL:tag)\n- **component**:\
+        \   ()\n- **replicas**:   (: 1)\n- **output_path**:    ()"
+      operationId: scaffold_spinapp_api_v1_scaffold_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScaffoldRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScaffoldResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/deploy:
+    post:
+      tags:
+      - Builds
+      summary: Deploy To K8S
+      description: "K8s SpinApp \n\n- **namespace**: Kubernetes  ()\n- **image_ref**:\
+        \   ()\n- **app_name**:   (, : Faker  )\n- **replicas**:   (: 1)\n- **enable_autoscaling**:\
+        \ HPA/KEDA  (: true)\n- **use_spot**: Spot   (: true)"
+      operationId: deploy_to_k8s_api_v1_deploy_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeployRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeployResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/build-and-push:
+    post:
+      tags:
+      - Builds
+      summary: Build And Push
+      description: '- **file**: .py   .zip  ()
+
+        - **registry_url**: ECR  URL ()
+
+        - **username**:   ()
+
+        - **password**:   ()
+
+        - **tag**:   (: sha256)
+
+        - **app_name**:   ()'
+      operationId: build_and_push_api_v1_build_and_push_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_build_and_push_api_v1_build_and_push_post'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /:
+    get:
+      summary: Root
+      description: ''
+      operationId: root__get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /health:
+    get:
+      summary: Health
+      description: ''
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
 components:
-  parameters:
-    WorkspaceId:
-      name: workspace_id
-      in: path
-      required: true
-      description: 워크스페이스 ID (예 ws-UEjecyZM)
-      schema:
-        type: string
-        example: ws-UEjecyZM
-
-    FunctionId:
-      name: function_id
-      in: path
-      required: true
-      description: 함수 ID (예 fn-T4dXeUjT)
-      schema:
-        type: string
-        example: fn-T4dXeUjT
-
   schemas:
-    # ===== Workspace Schemas =====
-    WorkspaceCreate:
+    Body_build_and_push_api_v1_build_and_push_post:
+      properties:
+        file:
+          type: string
+          format: binary
+          title: File
+        registry_url:
+          type: string
+          title: Registry Url
+        username:
+          type: string
+          title: Username
+        password:
+          type: string
+          title: Password
+        tag:
+          type: string
+          title: Tag
+          default: sha256
+        app_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: App Name
+        workspace_id:
+          type: string
+          title: Workspace Id
+          default: ws-default
       type: object
       required:
-        - name
+      - file
+      - registry_url
+      - username
+      - password
+      title: Body_build_and_push_api_v1_build_and_push_post
+    Body_build_api_v1_build_post:
       properties:
-        name:
+        file:
           type: string
-          minLength: 1
-          description: 워크스페이스 이름
-          example: my-workspace
-        description:
+          format: binary
+          title: File
+          description: .py   .zip
+        app_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: App Name
+          description: ''
+        workspace_id:
           type: string
-          description: 워크스페이스 설명
-          example: 테스트용 워크스페이스
-
-    WorkspaceUpdate:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-          description: 워크스페이스 이름
-          example: updated-workspace
-        description:
-          type: string
-          description: 워크스페이스 설명
-          example: 업데이트된 설명
-
-    Workspace:
-      type: object
-      properties:
-        id:
-          type: string
-          description: 워크스페이스 ID
-          example: ws-UEjecyZM
-        name:
-          type: string
-          description: 워크스페이스 이름
-          example: my-workspace
-        description:
-          type: string
-          description: 워크스페이스 설명
-          example: 테스트용 워크스페이스
-        createdAt:
-          type: string
-          format: date-time
-          description: 생성 일시 (ISO 8601)
-          example: '2025-12-01T10:23:54.737498'
-        functionCount:
-          type: integer
-          description: 포함된 함수 개수
-          example: 5
-        invocations24h:
-          type: integer
-          description: 최근 24시간 실행 횟수
-          example: 1250
-        errorRate:
-          type: number
-          format: float
-          description: 에러 발생률 (0.0 ~ 100.0)
-          example: 2.5
-
-    # ===== Function Schemas =====
-    FunctionCreate:
+          title: Workspace Id
+          description: ID
+          default: ws-default
       type: object
       required:
-        - name
-        - code
+      - file
+      title: Body_build_api_v1_build_post
+    BuildResponse:
       properties:
-        name:
+        task_id:
           type: string
-          minLength: 1
-          description: 함수 이름
-          example: hello-world
-        description:
-          type: string
-          description: 함수 설명
-          example: 간단한 Hello World 함수
-        runtime:
-          type: string
-          description: 런타임 환경
-          default: Python 3.12
-          example: Python 3.12
-        memory:
-          type: integer
-          minimum: 128
-          maximum: 1024
-          description: 메모리 할당량 (MB)
-          default: 256
-          example: 256
-        timeout:
-          type: integer
-          minimum: 1
-          maximum: 900
-          description: 타임아웃 (초)
-          default: 30
-          example: 30
-        httpMethods:
-          type: array
-          items:
-            type: string
-            enum: [GET, POST, PUT, PATCH, DELETE]
-          description: 허용할 HTTP 메서드
-          default: [GET]
-          example: [GET, POST]
-        environmentVariables:
-          type: object
-          additionalProperties:
-            type: string
-          description: 환경 변수
-          example:
-            API_KEY: secret-key-123
-            DEBUG: 'true'
-        code:
-          type: string
-          format: base64
-          description: |
-            **Base64 인코딩된 Python 코드**
-
-            원본 코드 예시:
-            ```python
-            def handler(event, context):
-                return {"message": "Hello World"}
-            ```
-          example: ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsibWVzc2FnZSI6ICJIZWxsbyBXb3JsZCJ9
-
-    FunctionUpdate:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 1
-          description: 함수 이름
-          example: updated-function
-        description:
-          type: string
-          description: 함수 설명
-          example: 업데이트된 설명
-        runtime:
-          type: string
-          description: 런타임 환경
-          example: Python 3.12
-        memory:
-          type: integer
-          minimum: 128
-          maximum: 1024
-          description: 메모리 할당량 (MB)
-          example: 512
-        timeout:
-          type: integer
-          minimum: 1
-          maximum: 900
-          description: 타임아웃 (초)
-          example: 60
-        httpMethods:
-          type: array
-          items:
-            type: string
-            enum: [GET, POST, PUT, PATCH, DELETE]
-          description: 허용할 HTTP 메서드
-          example: [GET, POST, PUT]
-        environmentVariables:
-          type: object
-          additionalProperties:
-            type: string
-          description: 환경 변수
-          example:
-            API_KEY: new-secret-key
-        code:
-          type: string
-          format: base64
-          description: Base64 인코딩된 Python 코드
-          example: ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsibWVzc2FnZSI6ICJVcGRhdGVkIn0=
+          title: Task Id
+          description: ID
         status:
           type: string
-          enum: [active, disabled]
-          description: 함수 상태
-          example: active
-
-    FunctionConfig:
+          title: Status
+          description: ': pending|running|completed|failed'
+        message:
+          type: string
+          title: Message
+          description: ''
+        source_s3_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source S3 Path
+          description: S3
       type: object
+      required:
+      - task_id
+      - status
+      - message
+      title: BuildResponse
+      description: ''
+    BuildTaskResult:
       properties:
-        id:
+        wasm_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wasm Path
+          description: WASM
+        image_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Image Url
+          description: ECR  URL
+        file_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: File Path
+          description: ''
+      type: object
+      title: BuildTaskResult
+      description: ''
+    DeployRequest:
+      properties:
+        app_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: App Name
+          description: ''
+        namespace:
           type: string
-          description: 함수 ID
-          example: fn-T4dXeUjT
-        workspaceId:
+          title: Namespace
+          description: Kubernetes
+        service_account:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Service Account
+          description: ServiceAccount
+        cpu_limit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cpu Limit
+          description: 'CPU  (: 500m)'
+        memory_limit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Memory Limit
+          description: '(: 128Mi)'
+        cpu_request:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cpu Request
+          description: 'CPU  (: 100m)'
+        memory_request:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Memory Request
+          description: '(: 64Mi)'
+        image_ref:
           type: string
-          description: 소속 워크스페이스 ID
-          example: ws-UEjecyZM
-        name:
-          type: string
-          description: 함수 이름
-          example: hello-world
-        description:
-          type: string
-          description: 함수 설명
-          example: 간단한 Hello World 함수
-        runtime:
-          type: string
-          description: 런타임 환경
-          example: Python 3.12
-        memory:
+          title: Image Ref
+          description: (ECR URL:tag)
+        enable_autoscaling:
+          type: boolean
+          title: Enable Autoscaling
+          description: HPA/KEDA
+          default: true
+        replicas:
           type: integer
-          description: 메모리 할당량 (MB)
-          example: 256
-        timeout:
-          type: integer
-          description: 타임아웃 (초)
-          example: 30
-        httpMethods:
-          type: array
-          items:
-            type: string
-          description: 허용된 HTTP 메서드
-          example: [GET, POST]
-        environmentVariables:
-          type: object
-          additionalProperties:
-            type: string
-          description: 환경 변수
-          example:
-            API_KEY: secret-key-123
-        code:
+          minimum: 1.0
+          title: Replicas
+          description: ''
+          default: 1
+        use_spot:
+          type: boolean
+          title: Use Spot
+          description: Spot
+          default: true
+        custom_tolerations:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Custom Tolerations
+          description: tolerations
+        custom_affinity:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Custom Affinity
+          description: affinity
+        function_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Function Id
+          description: Function ID ( )
+      type: object
+      required:
+      - namespace
+      - image_ref
+      title: DeployRequest
+      description: K8s
+    DeployResponse:
+      properties:
+        app_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: App Name
+          description: SpinApp
+        namespace:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Namespace
+          description: ''
+        service_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Service Name
+          description: SpinApp   Service
+        service_status:
           type: string
-          format: base64
-          description: Base64 인코딩된 Python 코드
-          example: ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsibWVzc2FnZSI6ICJIZWxsbyBXb3JsZCJ9
-        invocationUrl:
-          type: string
-          nullable: true
-          description: 함수 실행 URL (K3s 배포 후 할당)
-          example: null
-        status:
-          type: string
-          enum: [active, building, deploying, failed, disabled]
-          description: 함수 상태
-          example: active
-        lastModified:
-          type: string
-          format: date-time
-          description: 최종 수정 일시
-          example: '2025-12-01T10:24:30.654784'
-        lastDeployed:
-          type: string
-          format: date-time
-          nullable: true
-          description: 최종 배포 일시
-          example: null
-        invocations24h:
-          type: integer
-          description: 최근 24시간 실행 횟수
-          example: 0
-        errors24h:
-          type: integer
-          description: 최근 24시간 에러 횟수
-          example: 0
-        avgDuration:
-          type: number
-          format: float
-          description: 평균 실행 시간 (ms)
-          example: 0.0
-
-    # ===== Log Schemas =====
+          title: Service Status
+          description: 'Service : found|pending|not_found'
+        endpoint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Endpoint
+          description: Service
+        enable_autoscaling:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enable Autoscaling
+          description: ''
+        use_spot:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Use Spot
+          description: Spot
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+          description: ''
+      type: object
+      required:
+      - service_status
+      title: DeployResponse
+      description: K8s
     ExecutionLog:
-      type: object
       properties:
         id:
           type: string
-          description: 로그 ID
-          example: log-1733053200000
+          title: Id
         functionId:
           type: string
-          description: 함수 ID
-          example: fn-T4dXeUjT
+          title: Functionid
         timestamp:
           type: string
           format: date-time
-          description: 실행 시각
-          example: '2025-12-01T10:30:00.000Z'
+          title: Timestamp
         status:
           type: string
-          enum: [success, error]
-          description: 실행 결과
-          example: success
+          title: Status
         duration:
           type: number
-          format: float
-          description: 실행 시간 (ms)
-          example: 125.5
+          title: Duration
         statusCode:
           type: integer
-          description: HTTP 상태 코드
-          example: 200
+          title: Statuscode
         requestBody:
-          type: object
-          nullable: true
-          description: 요청 바디
-          example:
-            param1: value1
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Requestbody
         responseBody:
-          type: object
-          nullable: true
-          description: 응답 바디
-          example:
-            message: Success
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Responsebody
         logs:
-          type: array
           items:
             type: string
-          description: 함수 실행 로그 메시지
-          example:
-            - Function started
-            - Processing request...
-            - Done
+          type: array
+          title: Logs
         level:
           type: string
-          enum: [info, warn, error]
-          description: 로그 레벨
-          example: info
-
-    LogsResponse:
-      type: object
-      properties:
-        logs:
-          type: array
-          items:
-            $ref: '#/components/schemas/ExecutionLog'
-          description: 로그 목록
-        total:
-          type: integer
-          description: 총 로그 개수
-          example: 50
-
-    # ===== Build & Deploy Schemas =====
-    BuildResponse:
-      type: object
-      properties:
-        task_id:
-          type: string
-          description: 작업 ID (UUID)
-          example: 550e8400-e29b-41d4-a716-446655440000
-        status:
-          type: string
-          enum: [pending, running, completed, failed]
-          description: 작업 상태
-          example: pending
-        message:
-          type: string
-          description: 상태 메시지
-          example: Build task created
-
-    TaskStatusResponse:
-      type: object
-      properties:
-        task_id:
-          type: string
-          description: 작업 ID
-          example: 550e8400-e29b-41d4-a716-446655440000
-        status:
-          type: string
-          enum: [pending, running, completed, failed]
-          description: 작업 상태
-          example: completed
-        result:
-          type: object
-          nullable: true
-          description: 작업 결과 (완료 시)
-          properties:
-            wasm_path:
-              type: string
-              nullable: true
-              description: WASM 파일 경로
-              example: /path/to/app.wasm
-            image_url:
-              type: string
-              nullable: true
-              description: ECR 이미지 URL
-              example: ecr.aws/repo:tag
-            file_path:
-              type: string
-              nullable: true
-              description: 업로드된 파일 경로
-              example: s3://bucket/build-sources/ws-id/task-id/file.zip
-        error:
-          type: string
-          nullable: true
-          description: 에러 메시지 (실패 시)
-          example: Build failed: invalid syntax
-
-    PushRequest:
+          title: Level
+          default: info
       type: object
       required:
-        - registry_url
-        - username
-        - password
-        - app_dir
+      - id
+      - functionId
+      - timestamp
+      - status
+      - duration
+      - statusCode
+      title: ExecutionLog
+      description: ''
+    FunctionConfig:
+      properties:
+        id:
+          type: string
+          title: Id
+        workspaceId:
+          type: string
+          title: Workspaceid
+        name:
+          type: string
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        runtime:
+          type: string
+          title: Runtime
+        memory:
+          type: integer
+          title: Memory
+        timeout:
+          type: integer
+          title: Timeout
+        httpMethods:
+          items:
+            type: string
+          type: array
+          title: Httpmethods
+        environmentVariables:
+          additionalProperties:
+            type: string
+          type: object
+          title: Environmentvariables
+        code:
+          type: string
+          title: Code
+        invocationUrl:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Invocationurl
+        status:
+          type: string
+          title: Status
+          default: active
+        lastModified:
+          type: string
+          format: date-time
+          title: Lastmodified
+        lastDeployed:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Lastdeployed
+        invocations24h:
+          type: integer
+          title: Invocations24H
+          default: 0
+        errors24h:
+          type: integer
+          title: Errors24H
+          default: 0
+        avgDuration:
+          type: number
+          title: Avgduration
+          default: 0.0
+      type: object
+      required:
+      - id
+      - workspaceId
+      - name
+      - runtime
+      - memory
+      - timeout
+      - httpMethods
+      - environmentVariables
+      - code
+      - lastModified
+      title: FunctionConfig
+      description: ''
+    FunctionCreate:
+      properties:
+        name:
+          type: string
+          minLength: 1
+          title: Name
+          description: ''
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: ''
+        runtime:
+          type: string
+          title: Runtime
+          description: ''
+          default: Python 3.12
+        memory:
+          type: integer
+          maximum: 1024.0
+          minimum: 128.0
+          title: Memory
+          description: (MB)
+          default: 256
+        timeout:
+          type: integer
+          maximum: 900.0
+          minimum: 1.0
+          title: Timeout
+          description: ()
+          default: 30
+        httpMethods:
+          items:
+            type: string
+          type: array
+          title: Httpmethods
+          description: HTTP
+          default:
+          - GET
+        environmentVariables:
+          additionalProperties:
+            type: string
+          type: object
+          title: Environmentvariables
+          description: ''
+        code:
+          type: string
+          title: Code
+          description: Base64  Python
+      type: object
+      required:
+      - name
+      - code
+      title: FunctionCreate
+      description: ''
+    FunctionUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        runtime:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Runtime
+        memory:
+          anyOf:
+          - type: integer
+            maximum: 1024.0
+            minimum: 128.0
+          - type: 'null'
+          title: Memory
+        timeout:
+          anyOf:
+          - type: integer
+            maximum: 900.0
+            minimum: 1.0
+          - type: 'null'
+          title: Timeout
+        httpMethods:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Httpmethods
+        environmentVariables:
+          anyOf:
+          - additionalProperties:
+              type: string
+            type: object
+          - type: 'null'
+          title: Environmentvariables
+        code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code
+        status:
+          anyOf:
+          - type: string
+            pattern: ^(active|disabled)$
+          - type: 'null'
+          title: Status
+      type: object
+      title: FunctionUpdate
+      description: ''
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    LogsResponse:
+      properties:
+        logs:
+          items:
+            $ref: '#/components/schemas/ExecutionLog'
+          type: array
+          title: Logs
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - logs
+      - total
+      title: LogsResponse
+      description: ''
+    PushRequest:
       properties:
         registry_url:
           type: string
-          description: ECR 레지스트리 URL
-          example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com
+          title: Registry Url
+          description: ECR  URL
         username:
           type: string
-          description: 레지스트리 사용자명
-          example: AWS
+          title: Username
+          description: ''
         password:
           type: string
-          description: 레지스트리 비밀번호
-          example: eyJwYXlsb2FkIjoiY...
+          title: Password
+          description: ''
         tag:
           type: string
-          description: 이미지 태그
+          title: Tag
+          description: ''
           default: sha256
-          example: v1.0.0
         app_dir:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: App Dir
+          description: ''
+        workspace_id:
           type: string
-          description: 애플리케이션 디렉토리 경로
-          example: /path/to/app
-
-    ScaffoldRequest:
+          title: Workspace Id
+          description: ID
+        s3_source_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: S3 Source Path
+          description: S3
       type: object
       required:
-        - image_ref
+      - registry_url
+      - username
+      - password
+      - workspace_id
+      title: PushRequest
+      description: ECR
+    ScaffoldRequest:
       properties:
         image_ref:
           type: string
-          description: 이미지 참조 (ECR URL:tag)
-          example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/my-app:v1.0.0
+          title: Image Ref
+          description: (ECR URL:tag)
         component:
-          type: string
-          description: 컴포넌트 이름
-          example: my-component
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Component
+          description: ''
         replicas:
           type: integer
-          minimum: 1
+          minimum: 1.0
+          title: Replicas
+          description: ''
           default: 1
-          description: 레플리카 수
-          example: 3
         output_path:
-          type: string
-          description: 출력 파일 경로
-          example: /tmp/spinapp.yaml
-
-    ScaffoldResponse:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Output Path
+          description: ''
       type: object
+      required:
+      - image_ref
+      title: ScaffoldRequest
+      description: SpinApp
+    ScaffoldResponse:
       properties:
         success:
           type: boolean
-          description: 성공 여부
-          example: true
+          title: Success
+          description: ''
         yaml_content:
-          type: string
-          nullable: true
-          description: 생성된 YAML 내용
-          example: |
-            apiVersion: core.spinoperator.dev/v1alpha1
-            kind: SpinApp
-            metadata:
-              name: my-app
-            spec:
-              image: ecr.aws/repo:tag
-              replicas: 1
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Yaml Content
+          description: YAML
         file_path:
-          type: string
-          nullable: true
-          description: 저장된 파일 경로
-          example: /tmp/spinapp.yaml
-
-    DeployRequest:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: File Path
+          description: ''
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+          description: ''
       type: object
       required:
-        - namespace
-        - image_ref
+      - success
+      title: ScaffoldResponse
+      description: SpinApp
+    TaskStatusResponse:
       properties:
-        app_name:
+        task_id:
           type: string
-          description: 애플리케이션 이름 (미지정시 Faker 자동 생성)
-          example: my-spin-app
-        namespace:
+          title: Task Id
+          description: ID
+        status:
           type: string
-          description: Kubernetes 네임스페이스
-          example: default
-        service_account:
-          type: string
-          description: ServiceAccount 이름
-          example: spin-service-account
-        cpu_limit:
-          type: string
-          description: CPU 제한 (예 500m)
-          example: 500m
-        memory_limit:
-          type: string
-          description: 메모리 제한 (예 128Mi)
-          example: 128Mi
-        cpu_request:
-          type: string
-          description: CPU 요청 (예 100m)
-          example: 100m
-        memory_request:
-          type: string
-          description: 메모리 요청 (예 64Mi)
-          example: 64Mi
-        image_ref:
-          type: string
-          description: 이미지 참조 (ECR URL:tag)
-          example: 123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/my-app:v1.0.0
-        enable_autoscaling:
-          type: boolean
-          default: true
-          description: HPA/KEDA 오토스케일링 활성화
-          example: true
-        replicas:
-          type: integer
-          minimum: 1
-          default: 1
-          description: 레플리카 수 (enable_autoscaling=false일 때만)
-          example: 3
-        use_spot:
-          type: boolean
-          default: true
-          description: Spot 인스턴스 사용 스케줄링
-          example: true
-        custom_tolerations:
-          type: array
+          title: Status
+          description: ': pending|running|completed|failed'
+        result:
+          anyOf:
+          - $ref: '#/components/schemas/BuildTaskResult'
+          - type: 'null'
+          description: ''
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+          description: ''
+      type: object
+      required:
+      - task_id
+      - status
+      title: TaskStatusResponse
+      description: ''
+    ValidationError:
+      properties:
+        loc:
           items:
-            type: object
-          description: 사용자 정의 tolerations
-        custom_affinity:
-          type: object
-          description: 사용자 정의 affinity
-
-    DeployResponse:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
       type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    Workspace:
       properties:
-        app_name:
+        id:
           type: string
-          description: 배포된 SpinApp 이름
-          example: my-spin-app
-        namespace:
+          title: Id
+        name:
           type: string
-          description: 배포된 네임스페이스
-          example: default
-        service_name:
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        createdAt:
           type: string
-          description: SpinApp이 자동 생성한 Service 이름
-          example: my-spin-app-service
-        service_status:
-          type: string
-          enum: [found, pending, not_found]
-          description: Service 상태
-          example: found
-        endpoint:
-          type: string
-          nullable: true
-          description: Service 엔드포인트
-          example: my-spin-app.default.svc.cluster.local
-        enable_autoscaling:
-          type: boolean
-          description: 오토스케일링 활성화 여부
-          example: true
-        use_spot:
-          type: boolean
-          description: Spot 인스턴스 사용 여부
-          example: true
-
-    # ===== Error Schemas =====
-    ErrorResponse:
+          format: date-time
+          title: Createdat
+        functionCount:
+          type: integer
+          title: Functioncount
+          default: 0
+        invocations24h:
+          type: integer
+          title: Invocations24H
+          default: 0
+        errorRate:
+          type: number
+          title: Errorrate
+          default: 0.0
       type: object
+      required:
+      - id
+      - name
+      - createdAt
+      title: Workspace
+      description: ''
+    WorkspaceCreate:
       properties:
-        detail:
-          type: object
-          properties:
-            error:
-              type: object
-              properties:
-                code:
-                  type: string
-                  description: 에러 코드
-                  example: NOT_FOUND
-                message:
-                  type: string
-                  description: 에러 메시지
-                  example: Workspace ws-xxx not found
-                details:
-                  type: object
-                  nullable: true
-                  description: 추가 에러 상세 정보
-                  example:
-                    field: code
-
-  responses:
-    NotFound:
-      description: 리소스를 찾을 수 없음
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            detail:
-              error:
-                code: NOT_FOUND
-                message: Workspace ws-xxx not found
-
-    BadRequest:
-      description: 잘못된 요청
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            detail:
-              error:
-                code: VALIDATION_ERROR
-                message: Invalid Base64 encoded code
-                details:
-                  field: code
-
-    InternalServerError:
-      description: 서버 내부 에러
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          example:
-            detail:
-              error:
-                code: INTERNAL_ERROR
-                message: An unexpected error occurred
+        name:
+          type: string
+          minLength: 1
+          title: Name
+          description: ''
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: ''
+      type: object
+      required:
+      - name
+      title: WorkspaceCreate
+      description: ''
+    WorkspaceUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Name
+          description: ''
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+          description: ''
+      type: object
+      title: WorkspaceUpdate
+      description: ''

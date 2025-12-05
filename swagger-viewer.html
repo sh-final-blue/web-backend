@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>API Spec Viewer</title>
@@ -67,31 +67,23 @@
   <div id="header">
     <h1>API Spec Viewer</h1>
     <p class="info">
-      YAML 파일 버튼을 클릭하면 Swagger UI로 API 문서를 바로 확인할 수 있습니다. <br>
-      (Live Server 등 웹 서버 환경에서 실행하세요)
+      Click a YAML button to open the API docs in Swagger UI.<br>
+      Serve this folder (e.g., <code>python -m http.server 8000</code>) before opening the viewer.
     </p>
   </div>
 
   <div id="api-list">
-    <!-- faas-backend 폴더 -->
     <div class="folder-section">
-      <h2>FaaS Backend API (소프트뱅크 해커톤)</h2>
+      <h2>FaaS Backend API (Core Services)</h2>
       <p>
-        Function as a Service 플랫폼 백엔드 API 문서입니다.
-        <br>
-        <strong>완성된 기능:</strong>
-        <br>
-        • Workspace CRUD, Function CRUD, Logs 조회
-        <br>
-        • Build & Deploy API (WASM 빌드, ECR 푸시, SpinApp 배포) ✨ 신규 추가
-        <br>
-        <strong>대기 중:</strong> Core Services 통합 (인프라 팀과 협의 중)
+        Specification for the Function as a Service backend.<br>
+        <strong>Includes:</strong> Workspace CRUD, Function CRUD, Logs, Build & Deploy (WASM build, ECR push, SpinApp deploy).
       </p>
       <button onclick="loadSwagger('apiSpec/faas-backend/faas-api.yaml')">faas-api.yaml</button>
     </div>
   </div>
 
-  <button class="back-button" id="backButton" onclick="goBack()">← 목록으로 돌아가기</button>
+  <button class="back-button" id="backButton" onclick="goBack()">Back to list</button>
   <div id="swagger-ui"></div>
 
   <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
@@ -100,12 +92,10 @@
     let currentUI = null;
 
     function loadSwagger(yamlPath) {
-      // 목록 숨기고 Swagger UI 보이기
       document.getElementById('api-list').style.display = 'none';
       document.getElementById('swagger-ui').style.display = 'block';
       document.getElementById('backButton').style.display = 'block';
 
-      // Swagger UI 초기화
       const fullYamlUrl = window.location.origin + '/' + yamlPath;
 
       currentUI = SwaggerUIBundle({
@@ -116,12 +106,11 @@
           SwaggerUIBundle.presets.apis,
           SwaggerUIStandalonePreset
         ],
-        layout: "StandaloneLayout"
+        layout: 'StandaloneLayout'
       });
     }
 
     function goBack() {
-      // 목록 보이고 Swagger UI 숨기기
       document.getElementById('api-list').style.display = 'block';
       document.getElementById('swagger-ui').style.display = 'none';
       document.getElementById('backButton').style.display = 'none';
