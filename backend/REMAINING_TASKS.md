@@ -7,379 +7,213 @@
 - [x] Docker + Docker Compose configuration
 - [x] AWS DynamoDB and S3 client implementation
 - [x] Workspace, Function, Logs API implementation
-- [x] .env file setup with AWS credentials
 - [x] Backend container build and run success
 - [x] Health check endpoint testing completed
 
-### 2. Build App API Implementation (2025-12-03 Completed) ✨
-- [x] Build Task data model design and implementation (models.py)
-  - BuildResponse, TaskStatusResponse, BuildTaskResult
-  - PushRequest, ScaffoldRequest/Response
-  - DeployRequest/Response, BuildAndPushRequest
-- [x] DynamoDB BuildTask CRUD logic implementation (database.py)
-  - create_build_task, get_build_task, get_build_task_by_id
-  - update_build_task_status, list_build_tasks
-- [x] S3 build source upload logic implementation (database.py)
-  - save_build_source, get_build_source, delete_build_source
-- [x] Build API router implementation (builds.py)
-  - POST /api/v1/build (file upload and build)
-  - GET /api/v1/tasks/{task_id} (task status query)
-  - POST /api/v1/push (ECR push)
-  - POST /api/v1/scaffold (SpinApp manifest generation)
-  - POST /api/v1/deploy (K8s deployment)
-  - POST /api/v1/build-and-push (build + push integration)
-- [x] Build router registration in main.py
-- [x] Shared DynamoDB schema with Hyunmin Cho and requested infrastructure info
-- [x] Frontend API integration functions (frontend/src/lib/api.ts)
-  - buildFromFile, getTaskStatus, pushToECR
-  - scaffoldSpinApp, deployToK8s, buildAndPush
-  - TypeScript type definitions matching backend models
+### 2. Build App API Implementation (2025-12-03 Completed)
+- [x] Build Task data model design and implementation
+- [x] DynamoDB BuildTask CRUD logic implementation
+- [x] S3 build source upload logic implementation
+- [x] Build API router implementation
+- [x] Frontend API integration functions
 
-### 3. Documentation
-- [x] README.md (overall project guide)
-- [x] DOCKER_COMMANDS.md (Docker commands reference)
-- [x] DOCKER_COMPOSE_EXPLAINED.md (Docker Compose explanation)
-- [x] AWS_CREDENTIALS_SIMPLE.md (AWS credentials guide)
-- [x] DYNAMODB_SETUP_GUIDE.md (DynamoDB table setup guide)
-- [x] S3_SETUP_GUIDE.md (S3 bucket setup guide)
+### 3. Core Services Integration (2025-12-05 Completed)
+- [x] HTTP API integration with Builder Service (`https://builder.eunha.icu`)
+- [x] Polling logic implementation (5s interval, 10min timeout)
+- [x] All Mock functions replaced with real HTTP API calls
+- [x] DynamoDB status updates integrated
+- [x] Error handling and timeout logic added
+- [x] Support for both "completed" and "done" status from Builder Service
+
+### 4. IRSA Support (2025-12-06 Completed) ✨
+- [x] ECR credentials made optional for IRSA support
+- [x] `username` parameter defaults to "AWS"
+- [x] `password` parameter is now optional
+- [x] None value filtering to prevent sending null to Builder Service
+- [x] Backward compatibility maintained (existing token-based auth still works)
 
 ---
 
 ## 🔧 Current Status
 
-### Backend API Status
-```bash
-# Container running
-docker ps
-# faas-backend container running on port 8000
+### Deployment
+- **Backend API**: `https://api.eunha.icu` (ArgoCD auto-deploy)
+- **Builder Service**: `https://builder.eunha.icu`
+- **Frontend**: `https://eunha.icu`
 
-# Health Check success
-curl http://localhost:8000/health
-# {"status":"healthy"}
+### Latest Git Commits
 ```
-
-### Implemented API Endpoints
-
-#### Basic API
-- `GET /health` - health check
-- `GET /docs` - Swagger UI
-- `GET /redoc` - ReDoc UI
-
-#### Workspace API
-- `POST /api/workspaces` - create workspace
-- `GET /api/workspaces` - list workspaces
-- `GET /api/workspaces/{id}` - get workspace
-- `PATCH /api/workspaces/{id}` - update workspace
-- `DELETE /api/workspaces/{id}` - delete workspace
-
-#### Function API
-- `POST /api/workspaces/{workspace_id}/functions` - create function
-- `GET /api/workspaces/{workspace_id}/functions` - list functions
-- `GET /api/functions/{id}` - get function
-- `PATCH /api/functions/{id}` - update function
-- `DELETE /api/functions/{id}` - delete function
-
-#### Logs API
-- `GET /api/functions/{id}/logs` - get execution logs
-
-#### Build API (New) ✨
-- `POST /api/v1/build` - file upload and build start
-- `GET /api/v1/tasks/{task_id}` - task status query
-- `POST /api/v1/push` - push image to ECR
-- `POST /api/v1/scaffold` - generate SpinApp manifest
-- `POST /api/v1/deploy` - deploy SpinApp to K8s
-- `POST /api/v1/build-and-push` - build and push integration
+fc5a049 - fix: Only send password to Builder Service when provided
+54730fe - feat: Make ECR credentials optional for IRSA support
+4d65083 - fix: Support both 'completed' and 'done' status from Builder Service
+```
 
 ---
 
-## ✅ Core Services Integration Completed (2025-12-05)
+## 🎯 Next Steps (Pending Infrastructure)
 
-### 🎉 Infrastructure Integration - COMPLETED
-
-#### 1. Core Services Integration Method - RESOLVED ⭐⭐⭐
-**Status**: ✅ **COMPLETED** (2025-12-05)
-**Integration Method**: HTTP API (`https://builder.eunha.icu`)
-
-**Completed Work**:
-1. ✅ Added `builder_service_url` to `backend/app/config.py`
-   - Default: `https://builder.eunha.icu`
-2. ✅ Replaced all Mock functions with real HTTP API calls:
-   - `_real_build_process()` - Calls `/api/v1/build` with polling
-   - `_real_push_process()` - Calls `/api/v1/push` with polling
-   - `scaffold_spinapp()` - Calls `/api/v1/scaffold`
-   - `deploy_to_k8s()` - Calls `/api/v1/deploy`
-   - `build_and_push()` - Calls `/api/v1/build-and-push` with polling
-3. ✅ Implemented polling logic (5 seconds interval, 10 minutes timeout)
-4. ✅ Added `httpx==0.27.0` to `requirements.txt`
-5. ✅ DynamoDB status updates integrated into polling logic
-
-**Integration Details**:
-- **Base URL**: `https://builder.eunha.icu`
-- **Polling**: 5 seconds interval, maximum 120 attempts (10 minutes)
-- **Status Flow**: `pending` → `running` → `completed`/`failed`
-- **Error Handling**: HTTP errors, timeouts, and exceptions properly handled
-
-**Owner**: Sungwoo Choi ✅
-
-#### 2. Configuration Update - COMPLETED ⭐
-**Status**: ✅ **COMPLETED** (2025-12-05)
-
-**Completed Work**:
-- ✅ Added `builder_service_url` to `backend/app/config.py`
-- ✅ Default value: `https://builder.eunha.icu`
-- ✅ All Core Services use the same base URL
-- ✅ ECR credentials remain as API request parameters (not env vars)
-
-**Owner**: Sungwoo Choi ✅
-
-#### 3. Async Task Status Update Implementation - COMPLETED ⭐⭐
-**Status**: ✅ **COMPLETED** (2025-12-05)
-**Method**: Polling (recommended by Hyunmin Cho)
-
-**Completed Work**:
-- ✅ Implemented HTTP polling in all background tasks
-- ✅ Polling interval: 5 seconds
-- ✅ Maximum attempts: 120 (10 minutes timeout)
-- ✅ DynamoDB status updates on each poll
-- ✅ Error handling for HTTP errors and timeouts
-- ✅ Status flow: `pending` → `running` → `completed`/`failed`
-
-**Implementation**:
-- `_real_build_process()`: Polls Builder Service `/api/v1/tasks/{task_id}`
-- `_real_push_process()`: Polls Builder Service `/api/v1/tasks/{task_id}`
-- `build_and_push()`: Polls Builder Service `/api/v1/tasks/{task_id}`
-
-**Owner**: Sungwoo Choi ✅
-
----
-
-## 🎯 Immediately Available Tasks (Infrastructure Independent)
-
-### 1. Build API Testing ⭐⭐⭐
-**Current Status**: Testable with Mock
-**Owner**: Sungwoo Choi
-
-```bash
-# 1. Start server
-cd backend
-docker-compose up -d
-
-# 2. Access Swagger UI
-http://localhost:8000/docs
-
-# 3. Test POST /api/v1/build
-# - Upload file (.py or .zip)
-# - Changes to completed status after 3 seconds
-
-# 4. Test GET /api/v1/tasks/{task_id}
-# - Query status with task_id
-# - Check wasm_path in result
-```
-
-### 2. Frontend Integration ⭐⭐⭐
-**Current Status**: API functions implemented, UI integration pending
-**Owner**: Sungwoo Choi
-
-**Completed**:
-- ✅ API client functions in `frontend/src/lib/api.ts`
-- ✅ TypeScript type definitions matching backend models
-- ✅ CORS configuration (localhost:3000, localhost:5173 allowed)
+### 1. Builder Service IRSA Configuration ⏰
+**Status**: Waiting for Hyunmin Cho (2025-12-07)
+**Owner**: Hyunmin Cho
 
 **Required Work**:
-- Build upload UI component integration
-- Task status polling UI implementation
-- Error handling and user feedback
+- Builder Service ServiceAccount IRSA configuration
+- Builder Service API spec update (`password: Optional[str]`)
+- ECR push testing with IRSA
 
-### 3. ECR Image Upload ⭐
-**Current Status**: Not uploaded
-**Owner**: Sungwoo Choi
+**Backend Status**: ✅ Ready (code already supports IRSA)
 
-```bash
-# Run ecr-upload.bat (Windows)
-cd backend
-ecr-upload.bat
+### 2. Python Code Format Documentation 📝
+**Status**: Needed
+**Owner**: Hyunmin Cho or Documentation Team
 
-# Or run ecr-upload.sh (Linux/Mac)
-./ecr-upload.sh
+**Issue**: Users need to know the correct Spin Python format:
+```python
+from spin_sdk import http
+from spin_sdk.http import Request, Response
+
+class IncomingHandler(http.IncomingHandler):
+    def handle_request(self, request: Request) -> Response:
+        return Response(
+            200,
+            {"content-type": "text/plain"},
+            bytes("Hello from Blue FaaS!", "utf-8")
+        )
 ```
 
+**Recommended Action**:
+- Add example code to DEPLOYMENT_FLOW.md
+- Add validation error messages with hints
+
+### 3. Integration Testing 🧪
+**Status**: Partially tested
+**Owner**: Sungwoo Choi + Hyunmin Cho
+
+**Test Results (2025-12-06)**:
+- ✅ Backend → Builder Service API call successful
+- ✅ Build completed (WASM generated in ~10 seconds)
+- ✅ Polling logic works correctly
+- ❌ ECR Push failed (dummy password used for testing)
+- ⏰ Waiting for IRSA configuration
+
+**Next Test**:
+- Full build-and-push with IRSA
+- Deploy API testing with function_id label
+- Verify function_id appears in Pod labels (for log filtering)
+
 ---
 
-## 📊 DynamoDB Schema (Shared with Hyunmin Cho)
+## 📊 API Endpoints Summary
 
-### BuildTask Item Structure
+### Backend API (api.eunha.icu)
+- `GET /health` - health check
+- `GET /docs` - Swagger UI
+- `POST /api/v1/build-and-push` - build and push (IRSA-ready)
+- `GET /api/v1/tasks/{task_id}` - task status query
+- `POST /api/v1/deploy` - deploy to K8s with function_id
+
+### Builder Service (builder.eunha.icu)
+- `POST /api/v1/build-and-push` - build and push Spin app
+- `GET /api/v1/tasks/{task_id}` - task status
+- `POST /api/v1/deploy` - deploy SpinApp to K8s
+- `GET /docs` - OpenAPI documentation
+
+---
+
+## 🐛 Known Issues & Workarounds
+
+### 1. Python Code Format Error
+**Error**:
 ```
-Table Name: sfbank-blue-FaaSData
-
-Item Structure:
-- PK (Partition Key): "WS#{workspace_id}"
-- SK (Sort Key): "BUILD#{task_id}"
-- Type: "BuildTask"
-- task_id: UUID (unique task ID)
-- workspace_id: workspace ID
-- app_name: application name
-- status: "pending" | "running" | "completed" | "failed"
-- source_code_path: S3 path (uploaded source)
-- wasm_path: WASM file path (on build completion)
-- image_url: ECR image URL (on push completion)
-- error_message: error message (on failure)
-- created_at: creation time (ISO 8601)
-- updated_at: update time (ISO 8601)
+AttributeError: module 'test_app' has no attribute 'IncomingHandler'
 ```
 
-### S3 Path Rules
-```
-Bucket: sfbank-blue-functions-code-bucket
+**Solution**:
+Use the correct Spin Python format with `IncomingHandler` class (see section 2 above)
 
-Source Code:
-  build-sources/{workspace_id}/{task_id}/{filename}
+### 2. ECR Push Timeout (Before IRSA)
+**Symptom**: Build hangs at "running" status for 5+ minutes
 
-Build Artifacts (expected):
-  build-artifacts/{task_id}/{app_name}.wasm
-```
+**Cause**:
+- Invalid ECR credentials
+- Builder Service OOM (resolved with C7i + 6GB RAM)
 
----
-
-## 🔗 Communication Log with Hyunmin Cho
-
-### 2025-12-03
-
-#### Initial Request (Morning)
-1. ✅ Shared DynamoDB schema proposal
-2. ✅ Requested infrastructure integration info:
-   - Infrastructure service endpoints
-   - ECR registry information
-   - File storage path rules
-   - Async task status update method
-
-#### Response from Hyunmin Cho (Afternoon 1:36 PM)
-**Status**: Partially resolved ✅
-
-1. **Infrastructure Service Endpoints** ⏰
-   - Will be confirmed and shared in the evening
-   - Likely documented in API documentation
-
-2. **S3 Path & ECR Information**
-   - ✅ **S3 Path**: No specific requirement - use proposed path structure
-     - Source: `build-sources/{workspace_id}/{task_id}/{filename}`
-     - Artifacts: `build-artifacts/{task_id}/{app_name}.wasm`
-   - ⏰ **ECR Information**: Will be shared in the evening
-
-3. **Async Task Status Update Method** ✅
-   - **Decision**: Use **Polling Method** (Option 1)
-   - Backend will periodically check infrastructure service for task status
-   - Recommended by infrastructure team
-
-#### Hyunmin Cho shared "빌드앱구조API.pdf" (Evening 10:35 PM)
-**Status**: Architecture and API specification received ✅
-
-1. **Architecture Diagram** ✅
-   - Client (Web UI/CLI)
-   - FastAPI Server (REST API Layer, Background Task Manager, Task Store)
-   - Core Services (Validation, Build, Push, Scaffold, Deploy)
-   - External Systems (WASM Template, AWS ECR, Kubernetes Cluster)
-
-2. **REST API Specification** ✅
-   - Confirms our implemented endpoints match the spec
-   - All request/response models validated
-
-3. **Still Unclear** ⏰
-   - How FastAPI Server should call Core Services (HTTP vs CLI)
-   - DynamoDB usage by Core Services
-   - Polling implementation details
-
-### 2025-12-04
-
-#### Follow-up Questions to Hyunmin Cho (Morning)
-**Status**: Waiting for response ⏰
-
-Asked for clarification on:
-1. **Core Services Integration Method**
-   - Option A: HTTP API endpoints?
-   - Option B: Direct CLI command execution?
-
-2. **Polling Implementation Details**
-   - If HTTP: Which endpoint to poll for status?
-   - If CLI: Should we monitor filesystem/S3?
-
-### 2025-12-05
-
-#### Response from Hyunmin Cho (Afternoon)
-**Status**: ✅ **RESOLVED**
-
-1. **Core Services Endpoint** ✅
-   - Base URL: `https://builder.eunha.icu`
-   - OpenAPI Documentation: `https://builder.eunha.icu/docs`
-   - Integration Method: HTTP REST API
-
-2. **Implementation Completed** ✅
-   - All Mock functions replaced with real HTTP API calls
-   - Polling logic implemented (5s interval, 10min timeout)
-   - DynamoDB status updates integrated
-   - Error handling and timeout logic added
+**Status**: ✅ Resolved by Hyunmin Cho (2025-12-06)
 
 ---
 
-## 📝 Task Priority
+## 📞 Team Communication Log
 
-### Priority 1: Immediately Available (Infrastructure Independent)
-1. ✅ Build API Mock testing
-2. Frontend integration work
-3. ECR backend image upload
+### 2025-12-06 (Evening)
 
-### Priority 2: After Core Services Integration Method Confirmed
-1. Implement actual Core Services integration (HTTP or CLI)
-2. Async task status polling implementation
-3. Configuration updates (if needed)
-4. Integration testing with actual Core Services
+#### IRSA Decision
+**Participants**: Sungwoo Choi, Hyunmin Cho
 
-### Priority 3: Deployment and Monitoring
-1. K3s deployment (Infrastructure Engineer)
-2. Production environment testing
-3. Error handling enhancement
-4. Logging and monitoring implementation
+**Decision**: Use IRSA instead of passing ECR tokens
+- Builder Service will use IRSA for ECR authentication
+- Backend API no longer needs to generate/pass ECR tokens
+- `password` parameter is now optional
 
----
+**Action Items**:
+- ✅ Backend: Make credentials optional (Sungwoo - Completed)
+- ⏰ Infrastructure: Configure IRSA (Hyunmin - Tomorrow)
 
-## ⚠️ Important Notes
+#### Integration Test Results
+**Test Date**: 2025-12-06
 
-### 1. AWS Credentials Security
-- NEVER commit `.env` file to Git
-- Already added to `.gitignore`
-
-### 2. Local vs K3s Environment
-- **Local**: Uses AWS Access Key from `.env` file
-- **K3s**: Uses IAM Role (configured by Infrastructure Engineer)
-
-### 3. Hot Reload
-- Python code changes are auto-reflected (no restart needed)
-- Dockerfile changes require `docker-compose up --build -d`
-
-### 4. Mock vs Actual Implementation
-- Currently build/push/deploy work with **Mock**
-- For testing purposes until actual infrastructure integration
-- Parts needing replacement are marked with `TODO:` comments
+**Results**:
+- ✅ API connectivity verified
+- ✅ Build speed improved (OOM resolved)
+- ✅ WASM artifacts generated successfully
+- ⏰ ECR push pending IRSA configuration
 
 ---
 
-## 🔗 Related Documentation
+## 🎯 Priority Tasks
 
-- [README.md](./README.md) - Overall guide
-- [DOCKER_COMMANDS.md](./DOCKER_COMMANDS.md) - Docker commands
-- [AWS_CREDENTIALS_SIMPLE.md](./AWS_CREDENTIALS_SIMPLE.md) - AWS credentials
-- [DYNAMODB_SETUP_GUIDE.md](./DYNAMODB_SETUP_GUIDE.md) - DynamoDB setup
-- [S3_SETUP_GUIDE.md](./S3_SETUP_GUIDE.md) - S3 setup
+### Priority 1: Infrastructure (Hyunmin Cho)
+1. ⏰ Builder Service IRSA configuration
+2. ⏰ Builder Service API spec update (`password: Optional[str]`)
+3. ⏰ Verify function_id label injection in Pods
+
+### Priority 2: Testing (Sungwoo Choi + Hyunmin Cho)
+1. ⏰ End-to-end test after IRSA is ready
+2. ⏰ Verify ECR push succeeds
+3. ⏰ Verify deploy works with function_id
+
+### Priority 3: Frontend Integration (TBD)
+1. Build upload UI
+2. Task status polling UI
+3. Deploy UI with function_id input
+
+### Priority 4: Documentation
+1. Add Python code format examples
+2. Update API documentation
+3. Add troubleshooting guide
 
 ---
 
-## 📞 Contacts
+## 📝 Notes
 
-- **Backend Development**: Sungwoo Choi
-- **Infrastructure Development**: Hyunmin Cho
-- **Frontend Development**: (Developer name)
+### IRSA vs Token-based Auth
+**Current Implementation**: Supports both methods
+
+| Method | When to Use | Status |
+|--------|-------------|--------|
+| Token-based | Legacy, testing | ✅ Working |
+| IRSA | Production | ⏰ Infrastructure pending |
+
+**Backward Compatibility**: ✅ Maintained
+- Existing clients can still pass `password`
+- New clients can omit `password` (IRSA)
+
+### Python Code Format
+**Required Format**: Spin Python SDK with `IncomingHandler` class
+
+See: https://developer.fermyon.com/spin/v3/python-components
 
 ---
 
-**Last Update**: 2025-12-05
+**Last Update**: 2025-12-06 23:00
 **Author**: Sungwoo Choi
-**Status**: Core Services integration completed - Ready for testing
+**Status**: IRSA support added - Waiting for infrastructure configuration

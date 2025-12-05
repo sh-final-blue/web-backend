@@ -67,19 +67,41 @@
   <div id="header">
     <h1>API Spec Viewer</h1>
     <p class="info">
-      Click a YAML button to open the API docs in Swagger UI.<br>
-      Serve this folder (e.g., <code>python -m http.server 8000</code>) before opening the viewer.
+      <strong>Production API</strong>: <a href="https://api.eunha.icu/docs" target="_blank">https://api.eunha.icu/docs</a><br>
+      <strong>Local Development</strong>: <a href="http://localhost:8000/docs" target="_blank">http://localhost:8000/docs</a><br>
+      Click a YAML button below to view offline API docs in Swagger UI.<br>
+      <em>Serve this folder (e.g., <code>python -m http.server 8000</code>) before opening the viewer.</em>
     </p>
   </div>
 
   <div id="api-list">
     <div class="folder-section">
-      <h2>FaaS Backend API (Core Services)</h2>
+      <h2>FaaS Backend API (v2.0)</h2>
       <p>
-        Specification for the Function as a Service backend.<br>
-        <strong>Includes:</strong> Workspace CRUD, Function CRUD, Logs, Build & Deploy (WASM build, ECR push, SpinApp deploy).
+        <strong>Production</strong>: https://api.eunha.icu (ArgoCD auto-deploy)<br>
+        <strong>Builder Service</strong>: https://builder.eunha.icu<br>
+        <strong>Status</strong>: ✅ Core Services Integration Completed (2025-12-06)
       </p>
-      <button onclick="loadSwagger('apiSpec/faas-backend/faas-api.yaml')">faas-api.yaml</button>
+      <p>
+        <strong>Features:</strong>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li>Workspace & Function Management</li>
+          <li>Build & Deploy Spin Applications (Python → WASM)</li>
+          <li>ECR Integration with IRSA Support (optional credentials)</li>
+          <li>Kubernetes SpinApp Deployment with function_id labeling</li>
+          <li>Execution Logs via Loki & Prometheus</li>
+        </ul>
+      </p>
+      <p>
+        <strong>Latest Changes (2025-12-06):</strong>
+        <ul style="margin: 10px 0; padding-left: 20px;">
+          <li>✨ IRSA Support: <code>username</code> and <code>password</code> are now optional</li>
+          <li>✨ Status Compatibility: Supports both "completed" and "done" from Builder Service</li>
+          <li>✨ function_id: Deploy API now supports function_id for log filtering</li>
+        </ul>
+      </p>
+      <button onclick="loadSwagger('apiSpec/faas-backend/faas-api.yaml')">View Offline Spec (faas-api.yaml)</button>
+      <button onclick="window.open('https://api.eunha.icu/docs', '_blank')" style="background: #28a745;">View Production API (Live)</button>
     </div>
   </div>
 
