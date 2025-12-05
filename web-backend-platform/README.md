@@ -28,9 +28,9 @@
 
 ```mermaid
 graph LR
-    User[사용자] -->|HTTPS| ALB[AWS ALB Ingress]
-    ALB -->|HTTP| Service[Service: NodePort]
-    Service -->|TCP| Pod[Pod: web-backend]
+    User["사용자"] -->|HTTPS| ALB["AWS ALB Ingress"]
+    ALB -->|HTTP| Service["Service: NodePort"]
+    Service -->|TCP| Pod["Pod: web-backend"]
     
     subgraph "Kops Kubernetes Cluster (EC2)"
         ALB
@@ -39,9 +39,9 @@ graph LR
     end
     
     subgraph "AWS Cloud"
-        Pod -.->|IRSA (IAM Role)| IAM[AWS IAM]
-        Pod -->|SDK| DynamoDB[(DynamoDB)]
-        Pod -->|SDK| S3[(S3 버킷)]
+        Pod -.->|"IRSA (IAM Role)"| IAM["AWS IAM"]
+        Pod -->|SDK| DynamoDB[("DynamoDB")]
+        Pod -->|SDK| S3[("S3 버킷")]
     end
 ```
 
