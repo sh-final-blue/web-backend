@@ -124,6 +124,22 @@ class LokiLogsResponse(BaseModel):
     function_id: str = Field(..., description="함수 ID")
 
 
+# ===== Prometheus Metrics 모델 =====
+class PrometheusMetric(BaseModel):
+    """Prometheus 메트릭 데이터"""
+
+    metric: Dict[str, Any] = Field(..., description="메트릭 라벨")
+    value: List[Any] = Field(..., description="[타임스탬프, 값]")
+
+
+class PrometheusMetricsResponse(BaseModel):
+    """Prometheus 메트릭 조회 응답"""
+
+    status: str = Field(..., description="응답 상태")
+    data: Dict[str, Any] = Field(..., description="메트릭 데이터")
+    function_id: str = Field(..., description="함수 ID")
+
+
 # ===== BuildTask 모델 =====
 class BuildTaskResult(BaseModel):
     """빌드 작업 결과"""

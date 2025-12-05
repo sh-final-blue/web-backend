@@ -68,6 +68,7 @@ async def get_loki_logs(
             params = {
                 "query": f'{{function_id="{function_id}"}}',
                 "limit": limit,
+                "direction": "backward",
             }
 
             response = await client.get(loki_url, params=params)

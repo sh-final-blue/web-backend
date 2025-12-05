@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # Loki Log Service
     loki_service_url: str = "http://loki-stack.logging.svc.cluster.local:3100"
 
+    # Prometheus Metrics Service
+    prometheus_service_url: str = "http://prometheus-stack-kube-prometheus-prometheus.monitoring:9090"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
