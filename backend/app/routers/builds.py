@@ -460,8 +460,8 @@ async def build_and_push(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     registry_url: str = Form(...),
-    username: str = Form(...),
-    password: str = Form(...),
+    username: str = Form(default="AWS"),
+    password: Optional[str] = Form(None),
     tag: str = Form(default="sha256"),
     app_name: Optional[str] = Form(None),
     workspace_id: str = Form(default="ws-default"),
@@ -471,8 +471,8 @@ async def build_and_push(
 
     - **file**: .py 파일 또는 .zip 아카이브 (필수)
     - **registry_url**: ECR 레지스트리 URL (필수)
-    - **username**: 레지스트리 사용자명 (필수)
-    - **password**: 레지스트리 비밀번호 (필수)
+    - **username**: 레지스트리 사용자명 (기본값: AWS)
+    - **password**: 레지스트리 비밀번호 (선택, Builder Service IRSA 사용 시 불필요)
     - **tag**: 이미지 태그 (기본값: sha256)
     - **app_name**: 애플리케이션 이름 (선택)
     """
