@@ -76,7 +76,7 @@ async def _real_build_process(
                 logger.info(f"Build task {task_id} status: {status} (attempt {attempt + 1}/{max_attempts})")
 
                 # 상태 업데이트
-                if status == "completed":
+                if status in ["completed", "done"]:
                     result = status_data.get("result", {})
                     wasm_path = result.get("wasm_path")
 
@@ -168,7 +168,7 @@ async def _real_push_process(
                 status = status_data.get("status")
                 logger.info(f"Push task {task_id} status: {status} (attempt {attempt + 1}/{max_attempts})")
 
-                if status == "completed":
+                if status in ["completed", "done"]:
                     result = status_data.get("result", {})
                     image_url = result.get("image_url")
 
@@ -543,7 +543,7 @@ async def build_and_push(
                         status = status_data.get("status")
                         logger.info(f"Build-and-push task {task_id} status: {status}")
 
-                        if status == "completed":
+                        if status in ["completed", "done"]:
                             result = status_data.get("result", {})
                             wasm_path = result.get("wasm_path")
                             image_url = result.get("image_url")
