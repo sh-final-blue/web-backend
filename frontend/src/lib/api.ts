@@ -229,7 +229,7 @@ export interface BuildResponse {
 
 export interface TaskStatusResponse {
   task_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'building' | 'pushing' | 'completed' | 'done' | 'failed';
   result: BuildTaskResult | null;
   error: string | null;
 }

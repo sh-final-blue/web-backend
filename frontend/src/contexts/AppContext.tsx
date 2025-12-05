@@ -349,7 +349,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         file,
         '217350599014.dkr.ecr.ap-northeast-2.amazonaws.com/blue-final-faas-app',
         'AWS',
-        'dummy', // ECR password는 백엔드에서 처리
+        '', // IRSA로 Builder Service에서 자동 처리
         'sha256',
         fn.name,
         currentWorkspaceId
@@ -371,7 +371,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         onProgress?.(`Build status: ${status} (${attempts}/${maxAttempts})`);
 
-        if (status === 'completed') {
+        if (status === 'completed' || status === 'done') {
           const imageUrl = statusResponse.result?.image_url;
           if (!imageUrl) {
             throw new Error('Build completed but no image URL returned');
@@ -405,7 +405,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           // 로컬 state 업데이트
           setFunctions(prev => prev.map(f =>
             f.id === functionId
-              ? { ...f, status: 'active', invocationUrl: `http://${endpoint}` }
+              ? { ...f, status: 'active', invocationUrl: endpoint }
               : f
           ));
 
