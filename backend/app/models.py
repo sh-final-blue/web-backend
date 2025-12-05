@@ -123,6 +123,7 @@ class BuildResponse(BaseModel):
     task_id: str = Field(..., description="작업 ID")
     status: str = Field(..., description="작업 상태: pending|running|completed|failed")
     message: str = Field(..., description="상태 메시지")
+    source_s3_path: Optional[str] = Field(None, description="S3 소스 파일 경로")
 
 
 class TaskStatusResponse(BaseModel):
@@ -141,7 +142,9 @@ class PushRequest(BaseModel):
     username: str = Field(..., description="레지스트리 사용자명")
     password: str = Field(..., description="레지스트리 비밀번호")
     tag: str = Field(default="sha256", description="이미지 태그")
-    app_dir: str = Field(..., description="애플리케이션 디렉토리 경로")
+    app_dir: Optional[str] = Field(None, description="애플리케이션 디렉토리 경로")
+    workspace_id: str = Field(..., description="워크스페이스 ID")
+    s3_source_path: Optional[str] = Field(None, description="S3 소스 파일 경로")
 
 
 class ScaffoldRequest(BaseModel):
@@ -159,6 +162,7 @@ class ScaffoldResponse(BaseModel):
     success: bool = Field(..., description="성공 여부")
     yaml_content: Optional[str] = Field(None, description="생성된 YAML 내용")
     file_path: Optional[str] = Field(None, description="저장된 파일 경로")
+    error: Optional[str] = Field(None, description="에러 메시지")
 
 
 class DeployRequest(BaseModel):
@@ -184,13 +188,14 @@ class DeployRequest(BaseModel):
 class DeployResponse(BaseModel):
     """K8s 배포 응답"""
 
-    app_name: str = Field(..., description="배포된 SpinApp 이름")
-    namespace: str = Field(..., description="배포된 네임스페이스")
-    service_name: str = Field(..., description="SpinApp이 자동 생성한 Service 이름")
+    app_name: Optional[str] = Field(None, description="배포된 SpinApp 이름")
+    namespace: Optional[str] = Field(None, description="배포된 네임스페이스")
+    service_name: Optional[str] = Field(None, description="SpinApp이 자동 생성한 Service 이름")
     service_status: str = Field(..., description="Service 상태: found|pending|not_found")
     endpoint: Optional[str] = Field(None, description="Service 엔드포인트")
-    enable_autoscaling: bool = Field(..., description="오토스케일링 활성화 여부")
-    use_spot: bool = Field(..., description="Spot 인스턴스 사용 여부")
+    enable_autoscaling: Optional[bool] = Field(None, description="오토스케일링 활성화 여부")
+    use_spot: Optional[bool] = Field(None, description="Spot 인스턴스 사용 여부")
+    error: Optional[str] = Field(None, description="에러 메시지")
 
 
 class BuildAndPushRequest(BaseModel):
