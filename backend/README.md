@@ -2,206 +2,373 @@
 
 Function as a Service (FaaS) 플랫폼의 백엔드 API 서버입니다.
 
-## 기술 스택
+**Production**: https://api.eunha.icu (ArgoCD auto-deploy)
+**Builder Service**: https://builder.eunha.icu
+**Status**: ✅ Core Services Integration Completed (2025-12-06)
 
-- **FastAPI**: Python 웹 프레임워크
-- **DynamoDB**: NoSQL 데이터베이스 (단일 테이블 설계)
-- **S3**: 함수 코드 저장소
-- **Docker**: 컨테이너화
-- **Uvicorn**: ASGI 서버
+---
 
-## 프로젝트 구조
+## 🚀 Quick Start
+
+### Production API (Live)
+```bash
+# Swagger UI
+open https://api.eunha.icu/docs
+
+# Health Check
+curl https://api.eunha.icu/health
+```
+
+### Local Development
+```bash
+# 1. 프로젝트 루트에서 Docker Compose 실행
+cd ..
+docker-compose up -d
+
+# 2. API 문서 확인
+open http://localhost:8000/docs
+
+# 3. Health Check
+curl http://localhost:8000/health
+```
+
+---
+
+## 📋 Features
+
+### ✅ Workspace & Function Management
+- Workspace CRUD API
+- Function CRUD API
+- Execution logs via Loki & Prometheus
+
+### ✅ Build & Deploy (Spin Applications)
+- Python → WASM 빌드 (via Builder Service)
+- ECR Integration with **IRSA Support** (optional credentials)
+- Kubernetes SpinApp Deployment
+- function_id labeling for log filtering
+
+### ✅ Core Services Integration
+- **Builder Service**: https://builder.eunha.icu
+- HTTP REST API with polling (5s interval, 10min timeout)
+- Supports both "completed" and "done" status
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     FaaS Backend API                        │
+│                  (https://api.eunha.icu)                    │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ├─── DynamoDB (sfbank-blue-FaaSData)
+                            ├─── S3 (sfbank-blue-functions-code-bucket)
+                            └─── Builder Service (https://builder.eunha.icu)
+                                      │
+                                      ├─── Build (Python → WASM)
+                                      ├─── Push (ECR with IRSA)
+                                      └─── Deploy (K8s SpinApp)
+```
+
+---
+
+## 🛠️ Tech Stack
+
+| Category | Technology |
+|----------|-----------|
+| **Framework** | FastAPI 0.115.6 |
+| **Runtime** | Python 3.12 |
+| **Database** | AWS DynamoDB (Single Table Design) |
+| **Storage** | AWS S3 |
+| **Container** | Docker + ArgoCD |
+| **Orchestration** | Kubernetes (EKS) |
+| **Ingress** | AWS ALB |
+| **Monitoring** | Loki + Prometheus |
+
+---
+
+## 📁 Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI 앱 진입점
-│   ├── config.py            # 환경 변수 설정
-│   ├── models.py            # Pydantic 모델
-│   ├── database.py          # DynamoDB/S3 클라이언트
+│   ├── main.py              # FastAPI entry point
+│   ├── config.py            # Environment variables
+│   ├── models.py            # Pydantic models
+│   ├── database.py          # DynamoDB/S3 clients
 │   └── routers/
-│       ├── __init__.py
-│       ├── workspaces.py    # Workspace API
-│       ├── functions.py     # Function API
-│       └── logs.py          # Logs API
-├── Dockerfile
-├── requirements.txt
-├── .env.example
+│       ├── workspaces.py    # Workspace CRUD
+│       ├── functions.py     # Function CRUD
+│       ├── logs.py          # Logs API
+│       └── builds.py        # Build & Deploy API ✨
+├── Dockerfile               # Multi-stage build
+├── requirements.txt         # Python dependencies
 └── README.md
 ```
 
-## 로컬 개발 환경 설정
+---
 
-### 1. Docker Compose로 실행 (추천)
+## 🌐 API Endpoints
 
-**루트 디렉토리**에서 실행:
+### Health & Docs
+- `GET /health` - Health check
+- `GET /docs` - Swagger UI
+- `GET /redoc` - ReDoc UI
 
-```bash
-# 프로젝트 루트로 이동
-cd C:\Users\bluew\Desktop\codehome\2025softbank-hackathon-final
+### Workspace Management
+- `POST /api/workspaces` - Create workspace
+- `GET /api/workspaces` - List workspaces
+- `GET /api/workspaces/{id}` - Get workspace
+- `PATCH /api/workspaces/{id}` - Update workspace
+- `DELETE /api/workspaces/{id}` - Delete workspace
 
-# Docker Compose 실행
-docker-compose up --build
+### Function Management
+- `POST /api/workspaces/{ws_id}/functions` - Create function
+- `GET /api/workspaces/{ws_id}/functions` - List functions
+- `GET /api/workspaces/{ws_id}/functions/{fn_id}` - Get function
+- `PATCH /api/workspaces/{ws_id}/functions/{fn_id}` - Update function
+- `DELETE /api/workspaces/{ws_id}/functions/{fn_id}` - Delete function
+
+### Logs
+- `GET /api/workspaces/{ws_id}/functions/{fn_id}/logs` - Get execution logs
+
+### Build & Deploy ✨ (New)
+- `POST /api/v1/build-and-push` - Build Python code to WASM and push to ECR
+- `GET /api/v1/tasks/{task_id}` - Poll build task status
+- `POST /api/v1/deploy` - Deploy SpinApp to Kubernetes
+
+📖 **Full API Documentation**: https://api.eunha.icu/docs
+
+---
+
+## 🔧 Local Development
+
+### Prerequisites
+- Docker Desktop
+- AWS Account (for DynamoDB/S3)
+
+### Environment Variables
+Create `backend/.env` file (local development only):
+```env
+AWS_REGION=ap-northeast-2
+DYNAMODB_TABLE_NAME=sfbank-blue-FaaSData
+S3_BUCKET_NAME=sfbank-blue-functions-code-bucket
+ENVIRONMENT=development
+LOG_LEVEL=INFO
 ```
 
-서버가 실행되면 다음 URL에서 접속 가능합니다:
-- **API 서버**: http://localhost:8000
-- **API 문서 (Swagger)**: http://localhost:8000/docs
-- **API 문서 (ReDoc)**: http://localhost:8000/redoc
+**Note**: Production uses **IRSA** (no AWS credentials needed in `.env`)
 
-### 2. AWS 자격 증명 (로컬 개발 시)
-
-로컬에서 개발할 때는 **AWS credentials**가 필요합니다.
-
-**간단한 방법**:
+### Run Locally
 ```bash
-# backend/.env 파일 생성
-cd backend
-cp .env.example .env
+# From project root
+docker-compose up -d
 
-# .env 파일 수정 (실제 키 입력)
-AWS_ACCESS_KEY_ID=실제_액세스_키
-AWS_SECRET_ACCESS_KEY=실제_시크릿_키
-```
-
-자세한 가이드: [AWS_CREDENTIALS_GUIDE.md](AWS_CREDENTIALS_GUIDE.md)
-
-## API 엔드포인트
-
-### Workspace 관리
-
-- `POST /api/workspaces` - 워크스페이스 생성
-- `GET /api/workspaces` - 워크스페이스 목록 조회
-- `GET /api/workspaces/{id}` - 워크스페이스 상세 조회
-- `PATCH /api/workspaces/{id}` - 워크스페이스 수정
-- `DELETE /api/workspaces/{id}` - 워크스페이스 삭제
-
-### Function 관리
-
-- `POST /api/workspaces/{ws_id}/functions` - 함수 생성
-- `GET /api/workspaces/{ws_id}/functions` - 함수 목록 조회
-- `GET /api/workspaces/{ws_id}/functions/{fn_id}` - 함수 상세 조회
-- `PATCH /api/workspaces/{ws_id}/functions/{fn_id}` - 함수 수정
-- `DELETE /api/workspaces/{ws_id}/functions/{fn_id}` - 함수 삭제
-
-### Logs 조회
-
-- `GET /api/workspaces/{ws_id}/functions/{fn_id}/logs` - 함수 실행 로그 조회
-
-자세한 API 스펙은 [frontend/API_Document.md](../frontend/API_Document.md)를 참조하세요.
-
-## AWS 리소스 설정
-
-### DynamoDB 테이블
-
-- **테이블 이름**: `sfbank-blue-FaaSData`
-- **PK**: String
-- **SK**: String
-
-가이드: [DYNAMODB_SETUP_GUIDE.md](DYNAMODB_SETUP_GUIDE.md)
-
-### S3 버킷
-
-- **버킷 이름**: `sfbank-blue-functions-code-bucket`
-- **리전**: `ap-northeast-2`
-
-가이드: [S3_SETUP_GUIDE.md](S3_SETUP_GUIDE.md)
-
-## ECR에 배포하기
-
-### 1. 이미지 빌드
-
-```bash
-# backend 디렉토리에서
-docker build -t faas-backend:latest .
-```
-
-### 2. ECR 로그인
-
-```bash
-aws ecr get-login-password --region ap-northeast-2 | \
-  docker login --username AWS --password-stdin {AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-2.amazonaws.com
-```
-
-### 3. ECR 리포지토리 생성 (최초 1회)
-
-```bash
-aws ecr create-repository \
-  --repository-name faas-backend \
-  --region ap-northeast-2
-```
-
-### 4. 이미지 태그 및 푸시
-
-```bash
-# 태그
-docker tag faas-backend:latest \
-  {AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-2.amazonaws.com/faas-backend:latest
-
-# 푸시
-docker push {AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-2.amazonaws.com/faas-backend:latest
-```
-
-### 5. K3s에서 사용
-
-인프라 엔지니어가 K3s에서 이 이미지를 pull하여 배포합니다.
-
-## 개발 팁
-
-### Hot Reload
-
-Docker Compose로 실행 시 백엔드 코드 변경이 자동으로 반영됩니다.
-
-### API 테스트
-
-Swagger UI를 사용하여 API를 테스트할 수 있습니다:
-http://localhost:8000/docs
-
-### 로그 확인
-
-```bash
-# Docker Compose 로그
+# View logs
 docker-compose logs -f backend
 
-# 특정 컨테이너 로그
-docker logs -f faas-backend
+# Stop
+docker-compose down
 ```
 
-## 문제 해결
+### Hot Reload
+Python code changes are **automatically reflected** (no restart needed).
 
-### AWS Credentials 오류
+---
 
+## ☁️ Production Deployment
+
+### Infrastructure
+- **Deployment**: ArgoCD (auto-deploy from `main` branch)
+- **Helm Chart**: `../web-backend-platform/`
+- **Ingress**: AWS ALB (`api.eunha.icu`)
+- **Auth**: IRSA (IAM Roles for Service Accounts)
+
+### Deployment Flow
 ```
-botocore.exceptions.NoCredentialsError: Unable to locate credentials
+1. Git push to main branch
+   ↓
+2. GitHub Actions builds Docker image
+   ↓
+3. Image pushed to ECR
+   ↓
+4. ArgoCD detects changes
+   ↓
+5. Helm chart deployed to EKS
+   ↓
+6. ALB routes traffic to api.eunha.icu
 ```
 
-해결: `.env` 파일에 AWS 자격 증명을 올바르게 설정했는지 확인하세요.
-
-### DynamoDB 테이블 없음
-
-```
-botocore.errorfactory.ResourceNotFoundException: Requested resource not found
-```
-
-해결: AWS 콘솔에서 `sfbank-blue-FaaSData` 테이블을 생성하세요.
-
-### S3 버킷 없음
-
-```
-botocore.errorfactory.NoSuchBucket: The specified bucket does not exist
+### Environment Variables (Production)
+Set in `../web-backend-platform/values.yaml`:
+```yaml
+env:
+  AWS_REGION: "ap-northeast-2"
+  DYNAMODB_TABLE_NAME: "sfbank-blue-FaaSData"
+  S3_BUCKET_NAME: "sfbank-blue-functions-code-bucket"
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  CORS_ORIGINS: '["https://eunha.icu", "http://eunha.icu"]'
 ```
 
-해결: AWS 콘솔에서 S3 버킷을 생성하세요.
+---
 
-## 참고 문서
+## 📊 AWS Resources
 
-- [FastAPI 공식 문서](https://fastapi.tiangolo.com/)
-- [Boto3 문서](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
-- [API 설계 문서](../frontend/API_Document.md)
-- [Docker 명령어 가이드](../DOCKER_QUICK_GUIDE.md)
-- [AWS Credentials 가이드](AWS_CREDENTIALS_GUIDE.md)
+### DynamoDB Table
+- **Table Name**: `sfbank-blue-FaaSData`
+- **Partition Key**: `PK` (String)
+- **Sort Key**: `SK` (String)
+- **Design**: Single Table Design
 
-## 라이선스
+**Access Patterns**:
+- Workspace: `PK=WS#{ws_id}`, `SK=METADATA`
+- Function: `PK=WS#{ws_id}`, `SK=FN#{fn_id}`
+- Build Task: `PK=WS#{ws_id}`, `SK=BUILD#{task_id}`
+- Log: `PK=FN#{fn_id}`, `SK=LOG#{timestamp}`
 
-Softbank Hackathon 2025 - Final Project
+### S3 Bucket
+- **Bucket Name**: `sfbank-blue-functions-code-bucket`
+- **Region**: `ap-northeast-2`
+
+**Path Structure**:
+```
+build-sources/{workspace_id}/{task_id}/{filename}
+build-artifacts/{task_id}/{app_name}.wasm
+```
+
+---
+
+## 🔗 Integration
+
+### Builder Service
+- **URL**: https://builder.eunha.icu
+- **Docs**: https://builder.eunha.icu/docs
+- **Integration**: HTTP REST API with polling
+- **Features**:
+  - Build Python → WASM
+  - Push to ECR (IRSA support)
+  - Deploy to K8s (SpinApp)
+
+### Loki & Prometheus
+- **Logs**: Aggregated via Loki
+- **Metrics**: Collected via Prometheus
+- **Filter**: By `function_id` label
+
+---
+
+## 🧪 Testing
+
+### Manual Testing
+```bash
+# Swagger UI (Interactive)
+open https://api.eunha.icu/docs
+
+# cURL Example
+curl -X POST https://api.eunha.icu/api/workspaces \
+  -H "Content-Type: application/json" \
+  -d '{"name":"test","description":"Test workspace"}'
+```
+
+### Build & Deploy Test
+```python
+# 1. Upload Python file and build
+POST /api/v1/build-and-push
+- file: app.py (Spin Python format)
+- registry_url: 217350599014.dkr.ecr.ap-northeast-2.amazonaws.com/blue-final-faas-app
+
+# 2. Poll task status
+GET /api/v1/tasks/{task_id}?workspace_id=ws-default
+
+# 3. Deploy to K8s
+POST /api/v1/deploy
+- namespace: default
+- image_ref: (from step 2)
+- function_id: fn-test-001
+```
+
+**Python Code Format (Required)**:
+```python
+from spin_sdk import http
+from spin_sdk.http import Request, Response
+
+class IncomingHandler(http.IncomingHandler):
+    def handle_request(self, request: Request) -> Response:
+        return Response(
+            200,
+            {"content-type": "text/plain"},
+            bytes("Hello from Blue FaaS!", "utf-8")
+        )
+```
+
+**Reference**: https://developer.fermyon.com/spin/v3/python-components
+
+---
+
+## 🐛 Troubleshooting
+
+### Build Fails with "IncomingHandler" Error
+**Cause**: Incorrect Python code format
+**Solution**: Use Spin Python SDK format (see Testing section)
+
+### ECR Push Timeout
+**Cause**: IRSA not configured or invalid credentials
+**Solution**: Verify Builder Service IRSA configuration
+
+### Deploy Fails with "Namespace Not Found"
+**Cause**: Kubernetes namespace doesn't exist
+**Solution**:
+```bash
+kubectl create namespace <namespace>
+```
+
+### API Returns 500 Error
+**Cause**: DynamoDB/S3 access denied
+**Solution**: Check IAM permissions (IRSA in production)
+
+---
+
+## 📚 Documentation
+
+### Project Docs
+- [REMAINING_TASKS.md](REMAINING_TASKS.md) - Development log & handoff
+- [DOCKER_COMMANDS.md](DOCKER_COMMANDS.md) - Docker cheat sheet
+- [DYNAMODB_SETUP_GUIDE.md](DYNAMODB_SETUP_GUIDE.md) - DynamoDB setup
+
+### External References
+- [Builder Service Deployment Flow](https://github.com/sh-final-blue/web-faas-builder/blob/main/docs/DEPLOYMENT_FLOW.md)
+- [Spin Python SDK](https://developer.fermyon.com/spin/v3/python-components)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+
+---
+
+## 📝 Latest Changes (2025-12-06)
+
+### ✨ IRSA Support
+- `username` and `password` are now optional in `/api/v1/build-and-push`
+- Builder Service uses IRSA for ECR authentication
+- Backward compatible with token-based auth
+
+### ✨ Status Compatibility
+- Supports both "completed" and "done" status from Builder Service
+- Prevents polling failures due to status mismatch
+
+### ✨ function_id Support
+- Deploy API accepts `function_id` parameter
+- Pod labels include `function_id` for log filtering
+- Enables per-function log queries
+
+---
+
+## 👥 Team
+
+- **Backend Development**: Sungwoo Choi
+- **Infrastructure**: Hyunmin Cho
+- **Log System**: Jaejun Lee
+
+---
+
+**Last Updated**: 2025-12-06
+**Version**: 2.0.0
+**License**: Softbank Hackathon 2025 - Final Project
