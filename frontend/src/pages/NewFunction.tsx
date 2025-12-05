@@ -82,7 +82,7 @@ export default function NewFunction() {
     ));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name.trim()) {
       toast.error(t('newFunction.actions.nameRequired'));
       return;
@@ -100,21 +100,34 @@ export default function NewFunction() {
       return acc;
     }, {} as Record<string, string>);
 
-    const fn = createFunction({
-      workspaceId: workspaceId!,
-      name,
-      description,
-      runtime: 'Python 3.12',
-      memory: parseInt(memory),
-      timeout: parseInt(timeout),
-      httpMethods,
-      environmentVariables,
-      code,
-      status: 'active',
-    });
+    try {
+      // Step 1: Function 생성 (DynamoDB에 저장)
+      toast.info('Creating function...');
+      const fn = await createFunction({
+        workspaceId: workspaceId!,
+        name,
+        description,
+        runtime: 'Python 3.12',
+        memory: parseInt(memory),
+        timeout: parseInt(timeout),
+        httpMethods,
+        environmentVariables,
+        code,
+        status: 'building', // 빌드 중 상태
+      });
 
-    toast.success(t('newFunction.actions.success'));
-    navigate(`/workspaces/${workspaceId}/functions/${fn.id}`);
+      toast.success(t('newFunction.actions.success'));
+
+      // Step 2: 빌드 & 배포 시작 (백그라운드)
+      // 사용자는 Function Detail 페이지로 이동
+      navigate(`/workspaces/${workspaceId}/functions/${fn.id}`);
+
+      // Note: 실제 빌드/배포는 FunctionDetail 페이지에서 진행
+      // 또는 여기서 백그라운드로 시작할 수 있음
+    } catch (error) {
+      console.error('Failed to create function:', error);
+      toast.error('Failed to create function');
+    }
   };
 
   return (

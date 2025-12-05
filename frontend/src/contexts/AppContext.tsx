@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as api from '../lib/api';
-import type { LokiLogsResponse, PrometheusMetricsResponse } from '../lib/api';
+import type { LokiLogsResponse, PrometheusMetricsResponse, BuildResponse, TaskStatusResponse, DeployResponse } from '../lib/api';
 
 export interface Workspace {
   id: string;
@@ -62,6 +62,7 @@ interface AppContextType {
   loadFunctions: (workspaceId: string) => Promise<void>;
   getLokiLogs: (functionId: string, limit?: number) => Promise<LokiLogsResponse>;
   getPrometheusMetrics: (functionId: string) => Promise<PrometheusMetricsResponse>;
+  buildAndDeployFunction: (functionId: string, code: string, onProgress?: (status: string) => void) => Promise<string>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -326,6 +327,120 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const buildAndDeployFunction = async (
+    functionId: string,
+    code: string,
+    onProgress?: (status: string) => void
+  ): Promise<string> => {
+    if (!currentWorkspaceId) throw new Error('No workspace selected');
+
+    const fn = functions.find(f => f.id === functionId);
+    if (!fn) throw new Error('Function not found');
+
+    try {
+      // Step 1: 코드를 .py 파일로 변환
+      onProgress?.('Preparing code...');
+      const blob = new Blob([code], { type: 'text/plain' });
+      const file = new File([blob], `${fn.name}.py`, { type: 'text/plain' });
+
+      // Step 2: Build & Push
+      onProgress?.('Building and pushing image...');
+      const buildResponse = await api.buildAndPush(
+        file,
+        '217350599014.dkr.ecr.ap-northeast-2.amazonaws.com/blue-final-faas-app',
+        'AWS',
+        'dummy', // ECR password는 백엔드에서 처리
+        'sha256',
+        fn.name,
+        currentWorkspaceId
+      );
+
+      const taskId = buildResponse.task_id;
+      onProgress?.(`Build task created: ${taskId}`);
+
+      // Step 3: Polling (최대 10분)
+      let attempts = 0;
+      const maxAttempts = 120; // 5초 * 120 = 10분
+
+      while (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5초 대기
+        attempts++;
+
+        const statusResponse = await api.getTaskStatus(taskId);
+        const status = statusResponse.status;
+
+        onProgress?.(`Build status: ${status} (${attempts}/${maxAttempts})`);
+
+        if (status === 'completed') {
+          const imageUrl = statusResponse.result?.image_url;
+          if (!imageUrl) {
+            throw new Error('Build completed but no image URL returned');
+          }
+
+          onProgress?.('Build completed! Deploying to Kubernetes...');
+
+          // Step 4: Deploy to K8s
+          const deployResponse = await api.deployToK8s({
+            namespace: 'default',
+            image_ref: imageUrl,
+            function_id: functionId,
+            enable_autoscaling: true,
+            use_spot: false,
+          });
+
+          const endpoint = deployResponse.endpoint;
+          if (!endpoint) {
+            throw new Error('Deploy succeeded but no endpoint returned');
+          }
+
+          onProgress?.(`Deployed successfully: ${endpoint}`);
+
+          // Step 5: Function의 invocationUrl 업데이트
+          await api.updateFunction(currentWorkspaceId, functionId, {
+            // invocationUrl은 백엔드에서 자동으로 설정되어야 하지만,
+            // 현재는 status만 업데이트
+            status: 'active',
+          });
+
+          // 로컬 state 업데이트
+          setFunctions(prev => prev.map(f =>
+            f.id === functionId
+              ? { ...f, status: 'active', invocationUrl: `http://${endpoint}` }
+              : f
+          ));
+
+          return endpoint;
+        } else if (status === 'failed') {
+          const errorMsg = statusResponse.error || 'Build failed';
+          throw new Error(`Build failed: ${errorMsg}`);
+        }
+
+        // 'pending', 'running' 상태면 계속 polling
+      }
+
+      // 타임아웃
+      throw new Error('Build timeout (10 minutes exceeded)');
+    } catch (error) {
+      console.error('Build and deploy failed:', error);
+
+      // 실패 시 status를 'failed'로 업데이트
+      if (currentWorkspaceId) {
+        try {
+          await api.updateFunction(currentWorkspaceId, functionId, {
+            status: 'failed',
+          });
+          setFunctions(prev => prev.map(f =>
+            f.id === functionId ? { ...f, status: 'failed' } : f
+          ));
+        } catch (updateError) {
+          console.error('Failed to update function status:', updateError);
+        }
+      }
+
+      throw error;
+    }
+  };
+
   useEffect(() => {
     // Expose API functions to window for easier console testing
     if (typeof window !== 'undefined') {
@@ -364,6 +479,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       loadFunctions,
       getLokiLogs,
       getPrometheusMetrics,
+      buildAndDeployFunction,
     }}>
       {children}
     </AppContext.Provider>

@@ -19,7 +19,7 @@ import type { LokiLogsResponse, PrometheusMetricsResponse } from '@/lib/api';
 
 export default function FunctionDetail() {
   const { workspaceId, functionId } = useParams<{ workspaceId: string; functionId: string }>();
-  const { functions, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics } = useApp();
+  const { functions, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics, buildAndDeployFunction } = useApp();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -37,6 +37,10 @@ export default function FunctionDetail() {
   // Prometheus Metrics State
   const [prometheusMetrics, setPrometheusMetrics] = useState<PrometheusMetricsResponse | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+
+  // Deploy State
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [deployProgress, setDeployProgress] = useState<string>('');
 
   if (!fn) {
     return (
@@ -112,11 +116,44 @@ export default function FunctionDetail() {
     }
   }, [functionId, getPrometheusMetrics]);
 
+  const handleDeploy = async () => {
+    if (!functionId || !fn) return;
+
+    setIsDeploying(true);
+    setDeployProgress('Starting build and deploy...');
+
+    try {
+      const endpoint = await buildAndDeployFunction(
+        functionId,
+        fn.code,
+        (status) => {
+          setDeployProgress(status);
+        }
+      );
+
+      toast.success(`Deployed successfully! Endpoint: ${endpoint}`);
+      setDeployProgress('');
+    } catch (error: any) {
+      console.error('Deploy failed:', error);
+      toast.error(`Deploy failed: ${error.message}`);
+      setDeployProgress('');
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
   // Auto-load on mount
   useEffect(() => {
     loadLokiLogs();
     loadPrometheusMetrics();
   }, [loadLokiLogs, loadPrometheusMetrics]);
+
+  // Auto-deploy on mount if status is 'building'
+  useEffect(() => {
+    if (fn && fn.status === 'building' && !isDeploying) {
+      handleDeploy();
+    }
+  }, [fn?.status]);
 
   return (
     <AppLayout sidebar={<WorkspaceSidebar />}>
@@ -134,11 +171,28 @@ export default function FunctionDetail() {
                 <p className="text-muted-foreground">{fn.description}</p>
               )}
             </div>
-            <Button variant="destructive" onClick={handleDeleteFunction}>
-              <Trash className="h-4 w-4 mr-2" />
-              {t('functionDetail.deleteButton')}
-            </Button>
+            <div className="flex gap-2">
+              {fn.status === 'building' || fn.status === 'failed' || !fn.invocationUrl ? (
+                <Button
+                  onClick={handleDeploy}
+                  disabled={isDeploying}
+                  variant="default"
+                >
+                  {isDeploying ? 'Deploying...' : 'Deploy Function'}
+                </Button>
+              ) : null}
+              <Button variant="destructive" onClick={handleDeleteFunction}>
+                <Trash className="h-4 w-4 mr-2" />
+                {t('functionDetail.deleteButton')}
+              </Button>
+            </div>
           </div>
+          {isDeploying && deployProgress && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="text-sm font-medium text-blue-900">Deployment in Progress</div>
+              <div className="text-xs text-blue-700 mt-1">{deployProgress}</div>
+            </div>
+          )}
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
