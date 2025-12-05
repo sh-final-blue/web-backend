@@ -425,6 +425,7 @@ async def deploy_to_k8s(request: DeployRequest):
                 "use_spot": request.use_spot,
                 "custom_tolerations": request.custom_tolerations,
                 "custom_affinity": request.custom_affinity,
+                "function_id": request.function_id,  # 로그 구분용 Function ID
             }
 
             response = await client.post(

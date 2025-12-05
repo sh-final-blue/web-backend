@@ -183,6 +183,7 @@ class DeployRequest(BaseModel):
         None, description="사용자 정의 tolerations"
     )
     custom_affinity: Optional[Dict[str, Any]] = Field(None, description="사용자 정의 affinity")
+    function_id: Optional[str] = Field(None, description="Function ID (로그 구분용)")
 
 
 class DeployResponse(BaseModel):
