@@ -11,6 +11,8 @@ from app.models import (
     DeployRequest,
     DeployResponse,
     BuildAndPushRequest,
+    WorkspaceTaskItem,
+    WorkspaceTasksResponse,
 )
 from app.database import db_client, s3_client
 from app.config import settings
@@ -303,6 +305,52 @@ async def get_task_status(task_id: str):
         raise
     except Exception as e:
         logger.error(f"Get task status error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# ===== GET /api/v1/workspaces/{workspace_id}/tasks =====
+@router.get("/v1/workspaces/{workspace_id}/tasks", response_model=WorkspaceTasksResponse)
+async def list_workspace_tasks(workspace_id: str):
+    """
+    워크스페이스의 모든 빌드 작업 조회
+
+    - **workspace_id**: 워크스페이스 ID
+    """
+    try:
+        # DynamoDB에서 workspace_id로 모든 작업 조회
+        tasks = db_client.list_build_tasks(workspace_id)
+
+        # 응답 구성
+        task_items = []
+        for task in tasks:
+            result = None
+            if task["status"] == "completed":
+                result = BuildTaskResult(
+                    wasm_path=task.get("wasm_path"),
+                    image_url=task.get("image_url"),
+                    file_path=task.get("source_code_path"),
+                )
+
+            task_items.append(
+                WorkspaceTaskItem(
+                    task_id=task["task_id"],
+                    status=task["status"],
+                    app_name=task.get("app_name"),
+                    created_at=task.get("created_at", ""),
+                    updated_at=task.get("updated_at", ""),
+                    result=result,
+                    error=task.get("error_message"),
+                )
+            )
+
+        return WorkspaceTasksResponse(
+            workspace_id=workspace_id,
+            tasks=task_items,
+            count=len(task_items),
+        )
+
+    except Exception as e:
+        logger.error(f"List workspace tasks error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 

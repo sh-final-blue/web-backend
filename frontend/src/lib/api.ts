@@ -234,6 +234,22 @@ export interface TaskStatusResponse {
   error: string | null;
 }
 
+export interface WorkspaceTaskItem {
+  task_id: string;
+  status: string;
+  app_name: string | null;
+  created_at: string;
+  updated_at: string;
+  result: BuildTaskResult | null;
+  error: string | null;
+}
+
+export interface WorkspaceTasksResponse {
+  workspace_id: string;
+  tasks: WorkspaceTaskItem[];
+  count: number;
+}
+
 export interface PushRequest {
   registry_url: string;
   username: string;
@@ -269,6 +285,7 @@ export interface DeployRequest {
   use_spot?: boolean;
   custom_tolerations?: any[];
   custom_affinity?: any;
+  function_id?: string;
 }
 
 export interface DeployResponse {
@@ -320,6 +337,13 @@ export async function buildFromFile(
  */
 export async function getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
   return fetchApi<TaskStatusResponse>(`/api/v1/tasks/${taskId}`);
+}
+
+/**
+ * 워크스페이스의 모든 빌드 작업 조회
+ */
+export async function getWorkspaceTasks(workspaceId: string): Promise<WorkspaceTasksResponse> {
+  return fetchApi<WorkspaceTasksResponse>(`/api/v1/workspaces/${workspaceId}/tasks`);
 }
 
 /**

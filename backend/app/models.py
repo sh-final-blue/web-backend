@@ -167,6 +167,26 @@ class TaskStatusResponse(BaseModel):
     error: Optional[str] = Field(None, description="에러 메시지")
 
 
+class WorkspaceTaskItem(BaseModel):
+    """워크스페이스 작업 목록 항목"""
+
+    task_id: str = Field(..., description="작업 ID")
+    status: str = Field(..., description="작업 상태")
+    app_name: Optional[str] = Field(None, description="애플리케이션 이름")
+    created_at: str = Field(..., description="생성 시간")
+    updated_at: str = Field(..., description="수정 시간")
+    result: Optional[BuildTaskResult] = Field(None, description="작업 결과")
+    error: Optional[str] = Field(None, description="에러 메시지")
+
+
+class WorkspaceTasksResponse(BaseModel):
+    """워크스페이스 작업 목록 응답"""
+
+    workspace_id: str = Field(..., description="워크스페이스 ID")
+    tasks: List[WorkspaceTaskItem] = Field(..., description="작업 목록")
+    count: int = Field(..., description="작업 개수")
+
+
 class PushRequest(BaseModel):
     """ECR 푸시 요청"""
 
