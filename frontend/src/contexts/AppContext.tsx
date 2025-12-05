@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as api from '../lib/api';
+import type { LokiLogsResponse, PrometheusMetricsResponse } from '../lib/api';
 
 export interface Workspace {
   id: string;
@@ -59,6 +60,8 @@ interface AppContextType {
   invokeFunction: (id: string, requestBody: any) => Promise<ExecutionLog>;
   getFunctionLogs: (functionId: string) => Promise<ExecutionLog[]>;
   loadFunctions: (workspaceId: string) => Promise<void>;
+  getLokiLogs: (functionId: string, limit?: number) => Promise<LokiLogsResponse>;
+  getPrometheusMetrics: (functionId: string) => Promise<PrometheusMetricsResponse>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -266,32 +269,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const invokeFunction = async (id: string, requestBody: any): Promise<ExecutionLog> => {
+    if (!currentWorkspaceId) throw new Error('No workspace selected');
+
     const fn = functions.find(f => f.id === id);
     if (!fn) throw new Error('Function not found');
 
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      const result = await api.invokeFunction(currentWorkspaceId, id, requestBody);
+      const log: ExecutionLog = {
+        ...result,
+        timestamp: new Date(result.timestamp),
+      };
 
-    const success = Math.random() > 0.1; 
-    const log: ExecutionLog = {
-      id: `log-${Date.now()}`,
-      functionId: id,
-      timestamp: new Date(),
-      status: success ? 'success' : 'error',
-      duration: Math.floor(100 + Math.random() * 200),
-      statusCode: success ? 200 : 500,
-      requestBody,
-      responseBody: success ? { message: 'Function executed successfully (Mock)' } : { error: 'Execution failed (Mock)' },
-      logs: ['Function started', 'Processing request...', success ? 'Done' : 'Error'],
-      level: success ? 'info' : 'error',
-    };
-    
-    setExecutionLogs(prev => [log, ...prev]);
-    return log;
+      setExecutionLogs(prev => [log, ...prev]);
+      return log;
+    } catch (error) {
+      console.error('Failed to invoke function:', error);
+      throw error;
+    }
   };
 
   const getFunctionLogs = async (functionId: string): Promise<ExecutionLog[]> => {
     if (!currentWorkspaceId) return [];
-    
+
     try {
       const logs = await api.getFunctionLogs(currentWorkspaceId, functionId);
       const mappedLogs = logs.map(log => ({
@@ -303,6 +303,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Failed to load logs:', error);
       return [];
+    }
+  };
+
+  const getLokiLogs = async (functionId: string, limit: number = 100): Promise<LokiLogsResponse> => {
+    try {
+      const response = await api.getLokiLogs(functionId, limit);
+      return response;
+    } catch (error) {
+      console.error('Failed to load Loki logs:', error);
+      throw error;
+    }
+  };
+
+  const getPrometheusMetrics = async (functionId: string): Promise<PrometheusMetricsResponse> => {
+    try {
+      const response = await api.getPrometheusMetrics(functionId);
+      return response;
+    } catch (error) {
+      console.error('Failed to load Prometheus metrics:', error);
+      throw error;
     }
   };
 
@@ -342,6 +362,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       invokeFunction,
       getFunctionLogs,
       loadFunctions,
+      getLokiLogs,
+      getPrometheusMetrics,
     }}>
       {children}
     </AppContext.Provider>

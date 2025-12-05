@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '@/contexts/AppContext';
@@ -12,13 +12,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Activity, AlertCircle, Clock, Copy, Play, Trash } from 'lucide-react';
+import { Activity, AlertCircle, Clock, Copy, Play, Trash, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import type { LokiLogsResponse, PrometheusMetricsResponse } from '@/lib/api';
 
 export default function FunctionDetail() {
   const { workspaceId, functionId } = useParams<{ workspaceId: string; functionId: string }>();
-  const { functions, getFunctionLogs, invokeFunction, deleteFunction } = useApp();
+  const { functions, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics } = useApp();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -28,6 +29,14 @@ export default function FunctionDetail() {
   const [requestBody, setRequestBody] = useState('{\n  "key": "value"\n}');
   const [isInvoking, setIsInvoking] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
+
+  // Loki Logs State
+  const [lokiLogs, setLokiLogs] = useState<LokiLogsResponse | null>(null);
+  const [isLoadingLokiLogs, setIsLoadingLokiLogs] = useState(false);
+
+  // Prometheus Metrics State
+  const [prometheusMetrics, setPrometheusMetrics] = useState<PrometheusMetricsResponse | null>(null);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
 
   if (!fn) {
     return (
@@ -73,6 +82,42 @@ export default function FunctionDetail() {
     }
   };
 
+  const loadLokiLogs = useCallback(async () => {
+    if (!functionId) return;
+    setIsLoadingLokiLogs(true);
+    try {
+      const data = await getLokiLogs(functionId, 100);
+      setLokiLogs(data);
+      toast.success('Real-time logs loaded');
+    } catch (error) {
+      console.error('Failed to load Loki logs:', error);
+      toast.error('Failed to load real-time logs');
+    } finally {
+      setIsLoadingLokiLogs(false);
+    }
+  }, [functionId, getLokiLogs]);
+
+  const loadPrometheusMetrics = useCallback(async () => {
+    if (!functionId) return;
+    setIsLoadingMetrics(true);
+    try {
+      const data = await getPrometheusMetrics(functionId);
+      setPrometheusMetrics(data);
+      toast.success('Metrics loaded');
+    } catch (error) {
+      console.error('Failed to load Prometheus metrics:', error);
+      toast.error('Failed to load metrics');
+    } finally {
+      setIsLoadingMetrics(false);
+    }
+  }, [functionId, getPrometheusMetrics]);
+
+  // Auto-load on mount
+  useEffect(() => {
+    loadLokiLogs();
+    loadPrometheusMetrics();
+  }, [loadLokiLogs, loadPrometheusMetrics]);
+
   return (
     <AppLayout sidebar={<WorkspaceSidebar />}>
       <div className="p-8">
@@ -101,6 +146,8 @@ export default function FunctionDetail() {
             <TabsTrigger value="overview">{t('functionDetail.tabs.overview')}</TabsTrigger>
             <TabsTrigger value="test">{t('functionDetail.tabs.test')}</TabsTrigger>
             <TabsTrigger value="logs">{t('functionDetail.tabs.logs')}</TabsTrigger>
+            <TabsTrigger value="realtime-logs">Real-time Logs</TabsTrigger>
+            <TabsTrigger value="metrics">Metrics</TabsTrigger>
             <TabsTrigger value="code">{t('functionDetail.tabs.code')}</TabsTrigger>
           </TabsList>
 
@@ -264,6 +311,101 @@ export default function FunctionDetail() {
                       ))}
                     </TableBody>
                   </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="realtime-logs" className="space-y-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Real-time Logs (Loki)</CardTitle>
+                  <CardDescription>Live logs from your function execution</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadLokiLogs}
+                  disabled={isLoadingLokiLogs}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingLokiLogs ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isLoadingLokiLogs ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Loading logs...
+                  </div>
+                ) : !lokiLogs || lokiLogs.logs.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No real-time logs available
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                    {lokiLogs.logs.map((log, idx) => (
+                      <div key={idx} className="p-3 bg-muted rounded-md font-mono text-xs">
+                        <div className="text-muted-foreground mb-1">
+                          {new Date(parseInt(log.timestamp) / 1000000).toLocaleString()}
+                        </div>
+                        <div>{log.line}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {lokiLogs && (
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    Total logs: {lokiLogs.total}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="metrics" className="space-y-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Prometheus Metrics</CardTitle>
+                  <CardDescription>Pod metrics and resource usage</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadPrometheusMetrics}
+                  disabled={isLoadingMetrics}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingMetrics ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {isLoadingMetrics ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Loading metrics...
+                  </div>
+                ) : !prometheusMetrics ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No metrics available
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-muted rounded-md">
+                      <div className="text-sm font-medium mb-2">Status: {prometheusMetrics.status}</div>
+                      <div className="text-sm text-muted-foreground mb-2">Function ID: {prometheusMetrics.function_id}</div>
+                      {prometheusMetrics.data.result && prometheusMetrics.data.result.length > 0 ? (
+                        <div className="mt-4">
+                          <div className="font-medium mb-2">Metrics Data:</div>
+                          <pre className="text-xs overflow-auto max-h-[400px] bg-background p-3 rounded">
+                            {JSON.stringify(prometheusMetrics.data.result, null, 2)}
+                          </pre>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground mt-2">No metric results found</div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>

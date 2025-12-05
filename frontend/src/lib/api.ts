@@ -109,6 +109,26 @@ export interface LogItem {
   level: 'info' | 'warn' | 'error';
 }
 
+export interface LokiLogEntry {
+  timestamp: string;
+  line: string;
+}
+
+export interface LokiLogsResponse {
+  logs: LokiLogEntry[];
+  total: number;
+  function_id: string;
+}
+
+export interface PrometheusMetricsResponse {
+  status: string;
+  data: {
+    resultType?: string;
+    result?: any[];
+  };
+  function_id: string;
+}
+
 // --- Workspace API ---
 
 export async function getWorkspaces(): Promise<Workspace[]> {
@@ -172,6 +192,25 @@ export async function deleteFunction(workspaceId: string, functionId: string): P
 export async function getFunctionLogs(workspaceId: string, functionId: string): Promise<LogItem[]> {
   // Assuming the backend supports query params for limit, e.g. ?limit=100
   return fetchApi<LogItem[]>(`/api/workspaces/${workspaceId}/functions/${functionId}/logs?limit=100`);
+}
+
+export async function invokeFunction(workspaceId: string, functionId: string, requestBody: any): Promise<LogItem> {
+  return fetchApi<LogItem>(`/api/workspaces/${workspaceId}/functions/${functionId}/invoke`, {
+    method: 'POST',
+    body: JSON.stringify(requestBody),
+  });
+}
+
+// --- Loki Logs API ---
+
+export async function getLokiLogs(functionId: string, limit: number = 100): Promise<LokiLogsResponse> {
+  return fetchApi<LokiLogsResponse>(`/api/functions/${functionId}/loki-logs?limit=${limit}`);
+}
+
+// --- Prometheus Metrics API ---
+
+export async function getPrometheusMetrics(functionId: string): Promise<PrometheusMetricsResponse> {
+  return fetchApi<PrometheusMetricsResponse>(`/api/functions/${functionId}/metrics`);
 }
 
 // --- Build API ---

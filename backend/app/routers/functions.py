@@ -1,10 +1,13 @@
 """Function API 라우터"""
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request
 from app.models import FunctionCreate, FunctionUpdate, FunctionConfig
 from app.database import db_client, s3_client
-from typing import List
+from typing import List, Any, Dict
 from datetime import datetime
 import base64
+import httpx
+import uuid
+import time
 
 router = APIRouter()
 
@@ -309,3 +312,129 @@ async def delete_function(workspace_id: str, function_id: str):
     db_client.delete_function(workspace_id, function_id)
 
     return None
+
+
+@router.post(
+    "/workspaces/{workspace_id}/functions/{function_id}/invoke",
+    status_code=status.HTTP_200_OK,
+)
+async def invoke_function(
+    workspace_id: str, function_id: str, request: Request
+):
+    """함수 실행 (HTTP 호출)"""
+    # 함수 존재 확인
+    function = db_client.get_function(workspace_id, function_id)
+    if not function:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "NOT_FOUND",
+                    "message": f"Function {function_id} not found",
+                }
+            },
+        )
+
+    # invocationUrl 확인
+    invocation_url = function.get("invocationUrl")
+    if not invocation_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": {
+                    "code": "NOT_DEPLOYED",
+                    "message": "Function is not deployed yet. Please deploy the function first.",
+                }
+            },
+        )
+
+    # 요청 body 읽기
+    try:
+        request_body = await request.json()
+    except Exception:
+        request_body = {}
+
+    # 실행 시작 시간
+    start_time = time.time()
+
+    try:
+        # 실제 Function 엔드포인트 호출
+        async with httpx.AsyncClient(timeout=function.get("timeout", 30)) as client:
+            response = await client.post(
+                invocation_url,
+                json=request_body,
+                headers={"Content-Type": "application/json"},
+            )
+
+            # 실행 시간 계산
+            duration = int((time.time() - start_time) * 1000)  # ms
+
+            # 응답 body
+            try:
+                response_body = response.json()
+            except Exception:
+                response_body = {"data": response.text}
+
+            # 로그 생성 (DynamoDB에 저장)
+            log_id = str(uuid.uuid4())
+            log_entry = {
+                "id": log_id,
+                "functionId": function_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "success" if response.is_success else "error",
+                "duration": duration,
+                "statusCode": response.status_code,
+                "requestBody": request_body,
+                "responseBody": response_body,
+                "logs": [],  # 실제 로그는 Loki에서 수집
+                "level": "info" if response.is_success else "error",
+            }
+
+            # DynamoDB에 로그 저장
+            try:
+                db_client.create_log(function_id, log_entry)
+            except Exception as e:
+                print(f"Failed to save log: {e}")
+
+            # 응답 반환
+            return {
+                "id": log_id,
+                "functionId": function_id,
+                "timestamp": log_entry["timestamp"],
+                "status": log_entry["status"],
+                "duration": duration,
+                "statusCode": response.status_code,
+                "requestBody": request_body,
+                "responseBody": response_body,
+                "logs": [],
+                "level": log_entry["level"],
+            }
+
+    except httpx.TimeoutException:
+        duration = int((time.time() - start_time) * 1000)
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail={
+                "error": {
+                    "code": "TIMEOUT",
+                    "message": f"Function execution timed out after {function.get('timeout', 30)}s",
+                }
+            },
+        )
+    except httpx.HTTPError as e:
+        duration = int((time.time() - start_time) * 1000)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": {
+                    "code": "INVOCATION_ERROR",
+                    "message": f"Failed to invoke function: {str(e)}",
+                }
+            },
+        )
+    except Exception as e:
+        duration = int((time.time() - start_time) * 1000)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": {"code": "EXECUTION_ERROR", "message": str(e)}},
+        )
