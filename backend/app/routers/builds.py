@@ -13,7 +13,10 @@ from app.models import (
     BuildAndPushRequest,
 )
 from app.database import db_client, s3_client
+from app.config import settings
 import logging
+import httpx
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -29,30 +32,85 @@ def _get_workspace_id_from_task(task_id: str) -> Optional[str]:
     return None
 
 
-async def _mock_build_process(
-    workspace_id: str, task_id: str, source_path: str, app_name: str
+async def _real_build_process(
+    workspace_id: str, task_id: str, file_content: bytes, filename: str, app_name: str
 ):
-    """Mock 빌드 프로세스 (실제로는 인프라 서비스 호출)"""
-    import asyncio
-
+    """실제 Builder Service 호출 및 폴링"""
     try:
         # 상태를 running으로 변경
         db_client.update_build_task_status(workspace_id, task_id, "running")
 
-        # Mock: 빌드 시뮬레이션 (3초 대기)
-        await asyncio.sleep(3)
+        # 1. Builder Service의 /api/v1/build 호출
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            files = {"file": (filename, file_content)}
+            data = {
+                "workspace_id": workspace_id,
+                "app_name": app_name,
+            }
 
-        # Mock: 성공 결과
-        wasm_path = f"s3://sfbank-blue-functions-code-bucket/build-artifacts/{task_id}/{app_name}.wasm"
-        image_url = None  # 빌드만 하는 경우 이미지 URL은 없음
+            response = await client.post(
+                f"{settings.builder_service_url}/api/v1/build",
+                files=files,
+                data=data,
+            )
+            response.raise_for_status()
+            build_response = response.json()
+            builder_task_id = build_response.get("task_id")
 
-        # 상태를 completed로 변경
+            logger.info(f"Build task {task_id} submitted to Builder Service: {builder_task_id}")
+
+        # 2. 폴링으로 Builder Service의 작업 상태 확인 (최대 10분)
+        max_attempts = 120  # 5초 * 120 = 600초 = 10분
+        for attempt in range(max_attempts):
+            await asyncio.sleep(5)
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                status_response = await client.get(
+                    f"{settings.builder_service_url}/api/v1/tasks/{builder_task_id}",
+                    params={"workspace_id": workspace_id}
+                )
+                status_response.raise_for_status()
+                status_data = status_response.json()
+
+                status = status_data.get("status")
+                logger.info(f"Build task {task_id} status: {status} (attempt {attempt + 1}/{max_attempts})")
+
+                # 상태 업데이트
+                if status == "completed":
+                    result = status_data.get("result", {})
+                    wasm_path = result.get("wasm_path")
+
+                    db_client.update_build_task_status(
+                        workspace_id, task_id, "completed", wasm_path=wasm_path
+                    )
+                    logger.info(f"Build task {task_id} completed: {wasm_path}")
+                    break
+
+                elif status == "failed":
+                    error_msg = status_data.get("error", "Build failed")
+                    db_client.update_build_task_status(
+                        workspace_id, task_id, "failed", error_message=error_msg
+                    )
+                    logger.error(f"Build task {task_id} failed: {error_msg}")
+                    break
+
+                else:
+                    # running 또는 pending 상태 - DynamoDB 업데이트
+                    db_client.update_build_task_status(workspace_id, task_id, status)
+
+        else:
+            # 타임아웃 (10분 초과)
+            error_msg = "Build timeout (10 minutes exceeded)"
+            db_client.update_build_task_status(
+                workspace_id, task_id, "failed", error_message=error_msg
+            )
+            logger.error(f"Build task {task_id} timed out")
+
+    except httpx.HTTPError as e:
+        logger.error(f"Build task {task_id} HTTP error: {str(e)}")
         db_client.update_build_task_status(
-            workspace_id, task_id, "completed", wasm_path=wasm_path, image_url=image_url
+            workspace_id, task_id, "failed", error_message=f"HTTP error: {str(e)}"
         )
-
-        logger.info(f"Build task {task_id} completed successfully")
-
     except Exception as e:
         logger.error(f"Build task {task_id} failed: {str(e)}")
         db_client.update_build_task_status(
@@ -60,27 +118,90 @@ async def _mock_build_process(
         )
 
 
-async def _mock_push_process(
-    workspace_id: str, task_id: str, registry_url: str, tag: str, app_dir: str
+async def _real_push_process(
+    workspace_id: str,
+    task_id: str,
+    registry_url: str,
+    username: str,
+    password: str,
+    tag: str,
+    s3_source_path: str
 ):
-    """Mock ECR 푸시 프로세스"""
-    import asyncio
-
+    """실제 Builder Service의 Push API 호출 및 폴링"""
     try:
         db_client.update_build_task_status(workspace_id, task_id, "running")
 
-        # Mock: 푸시 시뮬레이션
-        await asyncio.sleep(2)
+        # 1. Builder Service의 /api/v1/push 호출
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            push_data = {
+                "registry_url": registry_url,
+                "username": username,
+                "password": password,
+                "tag": tag,
+                "workspace_id": workspace_id,
+                "s3_source_path": s3_source_path,
+            }
 
-        # Mock: 이미지 URL 생성
-        image_url = f"{registry_url}/spin-apps:{tag}-{task_id[:8]}"
+            response = await client.post(
+                f"{settings.builder_service_url}/api/v1/push",
+                json=push_data,
+            )
+            response.raise_for_status()
+            push_response = response.json()
+            builder_task_id = push_response.get("task_id")
 
+            logger.info(f"Push task {task_id} submitted to Builder Service: {builder_task_id}")
+
+        # 2. 폴링으로 작업 상태 확인 (최대 10분)
+        max_attempts = 120
+        for attempt in range(max_attempts):
+            await asyncio.sleep(5)
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                status_response = await client.get(
+                    f"{settings.builder_service_url}/api/v1/tasks/{builder_task_id}",
+                    params={"workspace_id": workspace_id}
+                )
+                status_response.raise_for_status()
+                status_data = status_response.json()
+
+                status = status_data.get("status")
+                logger.info(f"Push task {task_id} status: {status} (attempt {attempt + 1}/{max_attempts})")
+
+                if status == "completed":
+                    result = status_data.get("result", {})
+                    image_url = result.get("image_url")
+
+                    db_client.update_build_task_status(
+                        workspace_id, task_id, "completed", image_url=image_url
+                    )
+                    logger.info(f"Push task {task_id} completed: {image_url}")
+                    break
+
+                elif status == "failed":
+                    error_msg = status_data.get("error", "Push failed")
+                    db_client.update_build_task_status(
+                        workspace_id, task_id, "failed", error_message=error_msg
+                    )
+                    logger.error(f"Push task {task_id} failed: {error_msg}")
+                    break
+
+                else:
+                    db_client.update_build_task_status(workspace_id, task_id, status)
+
+        else:
+            # 타임아웃
+            error_msg = "Push timeout (10 minutes exceeded)"
+            db_client.update_build_task_status(
+                workspace_id, task_id, "failed", error_message=error_msg
+            )
+            logger.error(f"Push task {task_id} timed out")
+
+    except httpx.HTTPError as e:
+        logger.error(f"Push task {task_id} HTTP error: {str(e)}")
         db_client.update_build_task_status(
-            workspace_id, task_id, "completed", image_url=image_url
+            workspace_id, task_id, "failed", error_message=f"HTTP error: {str(e)}"
         )
-
-        logger.info(f"Push task {task_id} completed: {image_url}")
-
     except Exception as e:
         logger.error(f"Push task {task_id} failed: {str(e)}")
         db_client.update_build_task_status(
@@ -133,11 +254,11 @@ async def build(
 
         # 백그라운드에서 빌드 프로세스 실행
         background_tasks.add_task(
-            _mock_build_process, workspace_id, task_id, s3_path, final_app_name
+            _real_build_process, workspace_id, task_id, file_content, file.filename, final_app_name
         )
 
         return BuildResponse(
-            task_id=task_id, status="pending", message="Build task created"
+            task_id=task_id, status="pending", message="Build task created", source_s3_path=s3_path
         )
 
     except HTTPException:
@@ -198,9 +319,7 @@ async def push_to_ecr(background_tasks: BackgroundTasks, request: PushRequest):
     - **app_dir**: 애플리케이션 디렉토리 경로
     """
     try:
-        # TODO: 실제 인프라 서비스 엔드포인트 호출로 교체
-        # workspace_id는 app_dir에서 추출하거나 별도 파라미터로 받아야 함
-        workspace_id = "ws-default"  # Mock
+        workspace_id = request.workspace_id
 
         # Task 생성
         task = db_client.create_build_task(workspace_id=workspace_id, app_name=None)
@@ -208,12 +327,14 @@ async def push_to_ecr(background_tasks: BackgroundTasks, request: PushRequest):
 
         # 백그라운드에서 푸시 프로세스 실행
         background_tasks.add_task(
-            _mock_push_process,
+            _real_push_process,
             workspace_id,
             task_id,
             request.registry_url,
+            request.username,
+            request.password,
             request.tag,
-            request.app_dir,
+            request.s3_source_path or "",
         )
 
         return BuildResponse(
@@ -237,27 +358,41 @@ async def scaffold_spinapp(request: ScaffoldRequest):
     - **output_path**: 출력 파일 경로 (선택)
     """
     try:
-        # TODO: 실제 인프라 서비스 호출로 교체
-        # Mock YAML 생성
-        yaml_content = f"""apiVersion: core.spinoperator.dev/v1alpha1
-kind: SpinApp
-metadata:
-  name: {request.component or 'my-spin-app'}
-spec:
-  image: {request.image_ref}
-  replicas: {request.replicas}
-"""
+        # Builder Service의 /api/v1/scaffold 호출
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            scaffold_data = {
+                "image_ref": request.image_ref,
+                "component": request.component,
+                "replicas": request.replicas,
+                "output_path": request.output_path,
+            }
 
-        # Mock 파일 경로
-        file_path = request.output_path or "/tmp/spinapp.yaml"
+            response = await client.post(
+                f"{settings.builder_service_url}/api/v1/scaffold",
+                json=scaffold_data,
+            )
+            response.raise_for_status()
+            scaffold_response = response.json()
 
+            return ScaffoldResponse(
+                success=scaffold_response.get("success", True),
+                yaml_content=scaffold_response.get("yaml_content"),
+                file_path=scaffold_response.get("file_path"),
+                error=scaffold_response.get("error"),
+            )
+
+    except httpx.HTTPError as e:
+        logger.error(f"Scaffold HTTP error: {str(e)}")
         return ScaffoldResponse(
-            success=True, yaml_content=yaml_content, file_path=file_path
+            success=False,
+            error=f"HTTP error: {str(e)}"
         )
-
     except Exception as e:
         logger.error(f"Scaffold endpoint error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        return ScaffoldResponse(
+            success=False,
+            error=str(e)
+        )
 
 
 # ===== POST /api/v1/deploy =====
@@ -274,22 +409,45 @@ async def deploy_to_k8s(request: DeployRequest):
     - **use_spot**: Spot 인스턴스 사용 (기본값: true)
     """
     try:
-        # TODO: 실제 인프라 서비스 호출로 교체
-        # Mock 응답
-        app_name = request.app_name or "my-spin-app"
-        service_name = f"{app_name}-service"
-        endpoint = f"{app_name}.{request.namespace}.svc.cluster.local"
+        # Builder Service의 /api/v1/deploy 호출
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            deploy_data = {
+                "app_name": request.app_name,
+                "namespace": request.namespace,
+                "service_account": request.service_account,
+                "cpu_limit": request.cpu_limit,
+                "memory_limit": request.memory_limit,
+                "cpu_request": request.cpu_request,
+                "memory_request": request.memory_request,
+                "image_ref": request.image_ref,
+                "enable_autoscaling": request.enable_autoscaling,
+                "replicas": request.replicas,
+                "use_spot": request.use_spot,
+                "custom_tolerations": request.custom_tolerations,
+                "custom_affinity": request.custom_affinity,
+            }
 
-        return DeployResponse(
-            app_name=app_name,
-            namespace=request.namespace,
-            service_name=service_name,
-            service_status="found",
-            endpoint=endpoint,
-            enable_autoscaling=request.enable_autoscaling,
-            use_spot=request.use_spot,
-        )
+            response = await client.post(
+                f"{settings.builder_service_url}/api/v1/deploy",
+                json=deploy_data,
+            )
+            response.raise_for_status()
+            deploy_response = response.json()
 
+            return DeployResponse(
+                app_name=deploy_response.get("app_name"),
+                namespace=deploy_response.get("namespace"),
+                service_name=deploy_response.get("service_name"),
+                service_status=deploy_response.get("service_status", "pending"),
+                endpoint=deploy_response.get("endpoint"),
+                enable_autoscaling=deploy_response.get("enable_autoscaling"),
+                use_spot=deploy_response.get("use_spot"),
+                error=deploy_response.get("error"),
+            )
+
+    except httpx.HTTPError as e:
+        logger.error(f"Deploy HTTP error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"HTTP error: {str(e)}")
     except Exception as e:
         logger.error(f"Deploy endpoint error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
@@ -339,14 +497,96 @@ async def build_and_push(
             workspace_id, task_id, file_content, file.filename
         )
 
-        # TODO: 실제로는 빌드 -> 푸시 순차 실행
-        # Mock: 빌드만 실행 (푸시는 별도 호출 필요)
-        background_tasks.add_task(
-            _mock_build_process, workspace_id, task_id, s3_path, final_app_name
-        )
+        # Builder Service의 /api/v1/build-and-push 호출 (백그라운드)
+        async def _build_and_push_wrapper():
+            """Build and Push를 순차적으로 실행하는 래퍼"""
+            try:
+                db_client.update_build_task_status(workspace_id, task_id, "running")
+
+                # Builder Service에 build-and-push 요청
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    files = {"file": (file.filename, file_content)}
+                    data = {
+                        "registry_url": registry_url,
+                        "username": username,
+                        "password": password,
+                        "workspace_id": workspace_id,
+                        "tag": tag,
+                        "app_name": final_app_name,
+                    }
+
+                    response = await client.post(
+                        f"{settings.builder_service_url}/api/v1/build-and-push",
+                        files=files,
+                        data=data,
+                    )
+                    response.raise_for_status()
+                    build_push_response = response.json()
+                    builder_task_id = build_push_response.get("task_id")
+
+                    logger.info(f"Build-and-push task {task_id} submitted: {builder_task_id}")
+
+                # 폴링으로 상태 확인
+                max_attempts = 120
+                for attempt in range(max_attempts):
+                    await asyncio.sleep(5)
+
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        status_response = await client.get(
+                            f"{settings.builder_service_url}/api/v1/tasks/{builder_task_id}",
+                            params={"workspace_id": workspace_id}
+                        )
+                        status_response.raise_for_status()
+                        status_data = status_response.json()
+
+                        status = status_data.get("status")
+                        logger.info(f"Build-and-push task {task_id} status: {status}")
+
+                        if status == "completed":
+                            result = status_data.get("result", {})
+                            wasm_path = result.get("wasm_path")
+                            image_url = result.get("image_url")
+
+                            db_client.update_build_task_status(
+                                workspace_id, task_id, "completed",
+                                wasm_path=wasm_path, image_url=image_url
+                            )
+                            logger.info(f"Build-and-push task {task_id} completed")
+                            break
+
+                        elif status == "failed":
+                            error_msg = status_data.get("error", "Build-and-push failed")
+                            db_client.update_build_task_status(
+                                workspace_id, task_id, "failed", error_message=error_msg
+                            )
+                            logger.error(f"Build-and-push task {task_id} failed: {error_msg}")
+                            break
+
+                        else:
+                            db_client.update_build_task_status(workspace_id, task_id, status)
+
+                else:
+                    error_msg = "Build-and-push timeout (10 minutes exceeded)"
+                    db_client.update_build_task_status(
+                        workspace_id, task_id, "failed", error_message=error_msg
+                    )
+                    logger.error(f"Build-and-push task {task_id} timed out")
+
+            except httpx.HTTPError as e:
+                logger.error(f"Build-and-push task {task_id} HTTP error: {str(e)}")
+                db_client.update_build_task_status(
+                    workspace_id, task_id, "failed", error_message=f"HTTP error: {str(e)}"
+                )
+            except Exception as e:
+                logger.error(f"Build-and-push task {task_id} failed: {str(e)}")
+                db_client.update_build_task_status(
+                    workspace_id, task_id, "failed", error_message=str(e)
+                )
+
+        background_tasks.add_task(_build_and_push_wrapper)
 
         return BuildResponse(
-            task_id=task_id, status="pending", message="Build and push task created"
+            task_id=task_id, status="pending", message="Build and push task created", source_s3_path=s3_path
         )
 
     except HTTPException:

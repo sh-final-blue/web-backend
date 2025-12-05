@@ -29,6 +29,9 @@ class Settings(BaseSettings):
         "http://eunha.icu",
     ]
 
+    # Builder Service (Core Services)
+    builder_service_url: str = "https://builder.eunha.icu"
+
     class Config:
         env_file = ".env"
         case_sensitive = False

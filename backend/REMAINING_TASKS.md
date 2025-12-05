@@ -92,110 +92,64 @@ curl http://localhost:8000/health
 
 ---
 
-## 🚧 Remaining Tasks (Waiting for Hyunmin Cho's Response)
+## ✅ Core Services Integration Completed (2025-12-05)
 
-### ⏳ Infrastructure Integration Pending
+### 🎉 Infrastructure Integration - COMPLETED
 
-#### 1. Core Services Integration Method Clarification ⭐⭐⭐
-**Current Status**: Mock implementation completed, waiting for integration method clarification
-**Required Info**: (Requested from Hyunmin Cho - 2025-12-04)
+#### 1. Core Services Integration Method - RESOLVED ⭐⭐⭐
+**Status**: ✅ **COMPLETED** (2025-12-05)
+**Integration Method**: HTTP API (`https://builder.eunha.icu`)
 
-Based on the architecture diagram (빌드앱구조API.pdf), FastAPI Server needs to interact with Core Services:
-- Validation Service (MyPy)
-- Build Service (spin build)
-- Push Service (spin registry)
-- Scaffold Service (spin kube scaffold)
-- Deploy Service (kubectl apply)
+**Completed Work**:
+1. ✅ Added `builder_service_url` to `backend/app/config.py`
+   - Default: `https://builder.eunha.icu`
+2. ✅ Replaced all Mock functions with real HTTP API calls:
+   - `_real_build_process()` - Calls `/api/v1/build` with polling
+   - `_real_push_process()` - Calls `/api/v1/push` with polling
+   - `scaffold_spinapp()` - Calls `/api/v1/scaffold`
+   - `deploy_to_k8s()` - Calls `/api/v1/deploy`
+   - `build_and_push()` - Calls `/api/v1/build-and-push` with polling
+3. ✅ Implemented polling logic (5 seconds interval, 10 minutes timeout)
+4. ✅ Added `httpx==0.27.0` to `requirements.txt`
+5. ✅ DynamoDB status updates integrated into polling logic
 
-**Questions to Hyunmin Cho**:
-1. **Integration Method**:
-   - Option A: HTTP API calls to separate services (e.g., `http://build-service:8080/build`)
-   - Option B: Direct CLI command execution (e.g., subprocess running `spin build`)
+**Integration Details**:
+- **Base URL**: `https://builder.eunha.icu`
+- **Polling**: 5 seconds interval, maximum 120 attempts (10 minutes)
+- **Status Flow**: `pending` → `running` → `completed`/`failed`
+- **Error Handling**: HTTP errors, timeouts, and exceptions properly handled
 
-2. **Polling Implementation**:
-   - If HTTP API: Which endpoint to poll for task status?
-   - If CLI: Should we check filesystem/S3 for completion?
+**Owner**: Seongwoo Choi ✅
 
-**Work to do** (after clarification):
-```python
-# backend/app/routers/builds.py
-# TODO comments marked sections:
-# - _mock_build_process() -> replace with actual integration method
-# - _mock_push_process() -> replace with actual integration method
-# - scaffold_spinapp() -> replace with actual integration method
-# - deploy_to_k8s() -> replace with actual integration method
-```
+#### 2. Configuration Update - COMPLETED ⭐
+**Status**: ✅ **COMPLETED** (2025-12-05)
 
-**Owner**: Seongwoo Choi (after Hyunmin Cho's response)
+**Completed Work**:
+- ✅ Added `builder_service_url` to `backend/app/config.py`
+- ✅ Default value: `https://builder.eunha.icu`
+- ✅ All Core Services use the same base URL
+- ✅ ECR credentials remain as API request parameters (not env vars)
 
-#### 2. Configuration Update (If Needed) ⭐
-**Current Status**: Pending Core Services integration method clarification
+**Owner**: Seongwoo Choi ✅
 
-**Important Note**:
-- ECR credentials (registry_url, username, password) are passed as **API request parameters** (see PDF page 3: POST /api/v1/push)
-- NOT environment variables
+#### 3. Async Task Status Update Implementation - COMPLETED ⭐⭐
+**Status**: ✅ **COMPLETED** (2025-12-05)
+**Method**: Polling (recommended by Hyunmin Cho)
 
-**Potential Environment Variables** (depends on integration method):
-```python
-# Add to backend/app/config.py (if using HTTP API approach)
-class Settings(BaseSettings):
-    # Existing settings...
+**Completed Work**:
+- ✅ Implemented HTTP polling in all background tasks
+- ✅ Polling interval: 5 seconds
+- ✅ Maximum attempts: 120 (10 minutes timeout)
+- ✅ DynamoDB status updates on each poll
+- ✅ Error handling for HTTP errors and timeouts
+- ✅ Status flow: `pending` → `running` → `completed`/`failed`
 
-    # Build Infrastructure (only if using HTTP services)
-    build_service_url: str = ""  # Optional: if Core Services are HTTP endpoints
-    push_service_url: str = ""
-    scaffold_service_url: str = ""
-    deploy_service_url: str = ""
-```
+**Implementation**:
+- `_real_build_process()`: Polls Builder Service `/api/v1/tasks/{task_id}`
+- `_real_push_process()`: Polls Builder Service `/api/v1/tasks/{task_id}`
+- `build_and_push()`: Polls Builder Service `/api/v1/tasks/{task_id}`
 
-**Owner**: Seongwoo Choi (after integration method confirmed)
-
-#### 3. Async Task Status Update Implementation ⭐⭐
-**Decision Made**: ✅ **Polling Method**
-**Recommended by**: Hyunmin Cho (Infrastructure Team)
-
-**Status**: Implementation depends on Core Services integration method
-
-**Work to do**:
-- Implement periodic polling mechanism
-- Check task status at regular intervals (e.g., every 5 seconds)
-- Update DynamoDB task status based on infrastructure response
-- Handle timeout and error cases
-
-**Implementation Details** (will vary based on integration method):
-```python
-# Option A: HTTP API polling
-async def poll_task_status_http(task_id: str, max_attempts: int = 120):
-    for attempt in range(max_attempts):
-        # Call Core Service HTTP API
-        response = await http_client.get(f"{service_url}/tasks/{task_id}")
-        status = response.json()["status"]
-
-        # Update DynamoDB
-        db_client.update_build_task_status(...)
-
-        if status in ['completed', 'failed']:
-            break
-
-        await asyncio.sleep(5)
-
-# Option B: Filesystem/S3 polling
-async def poll_task_status_fs(task_id: str, max_attempts: int = 120):
-    for attempt in range(max_attempts):
-        # Check S3 for build artifacts
-        wasm_exists = await s3_client.check_file_exists(
-            f"build-artifacts/{task_id}/app.wasm"
-        )
-
-        if wasm_exists:
-            # Update DynamoDB to completed
-            db_client.update_build_task_status(...)
-            break
-
-        await asyncio.sleep(5)
-```
-
-**Owner**: Seongwoo Choi (after Core Services integration method confirmed)
+**Owner**: Seongwoo Choi ✅
 
 ---
 
@@ -348,9 +302,21 @@ Asked for clarification on:
    - If HTTP: Which endpoint to poll for status?
    - If CLI: Should we monitor filesystem/S3?
 
-**Next Steps**:
-- Wait for Hyunmin Cho's clarification on integration method
-- Implement actual Core Services integration once method is confirmed
+### 2025-12-05
+
+#### Response from Hyunmin Cho (Afternoon)
+**Status**: ✅ **RESOLVED**
+
+1. **Core Services Endpoint** ✅
+   - Base URL: `https://builder.eunha.icu`
+   - OpenAPI Documentation: `https://builder.eunha.icu/docs`
+   - Integration Method: HTTP REST API
+
+2. **Implementation Completed** ✅
+   - All Mock functions replaced with real HTTP API calls
+   - Polling logic implemented (5s interval, 10min timeout)
+   - DynamoDB status updates integrated
+   - Error handling and timeout logic added
 
 ---
 
@@ -414,6 +380,6 @@ Asked for clarification on:
 
 ---
 
-**Last Update**: 2025-12-04
+**Last Update**: 2025-12-05
 **Author**: Seongwoo Choi
-**Status**: Waiting for Core Services integration method clarification from Hyunmin Cho
+**Status**: Core Services integration completed - Ready for testing
