@@ -119,7 +119,7 @@ curl http://localhost:8000/health
 - **Status Flow**: `pending` → `running` → `completed`/`failed`
 - **Error Handling**: HTTP errors, timeouts, and exceptions properly handled
 
-**Owner**: Seongwoo Choi ✅
+**Owner**: Sungwoo Choi ✅
 
 #### 2. Configuration Update - COMPLETED ⭐
 **Status**: ✅ **COMPLETED** (2025-12-05)
@@ -130,7 +130,7 @@ curl http://localhost:8000/health
 - ✅ All Core Services use the same base URL
 - ✅ ECR credentials remain as API request parameters (not env vars)
 
-**Owner**: Seongwoo Choi ✅
+**Owner**: Sungwoo Choi ✅
 
 #### 3. Async Task Status Update Implementation - COMPLETED ⭐⭐
 **Status**: ✅ **COMPLETED** (2025-12-05)
@@ -149,7 +149,7 @@ curl http://localhost:8000/health
 - `_real_push_process()`: Polls Builder Service `/api/v1/tasks/{task_id}`
 - `build_and_push()`: Polls Builder Service `/api/v1/tasks/{task_id}`
 
-**Owner**: Seongwoo Choi ✅
+**Owner**: Sungwoo Choi ✅
 
 ---
 
@@ -157,7 +157,7 @@ curl http://localhost:8000/health
 
 ### 1. Build API Testing ⭐⭐⭐
 **Current Status**: Testable with Mock
-**Owner**: Seongwoo Choi
+**Owner**: Sungwoo Choi
 
 ```bash
 # 1. Start server
@@ -178,7 +178,7 @@ http://localhost:8000/docs
 
 ### 2. Frontend Integration ⭐⭐⭐
 **Current Status**: API functions implemented, UI integration pending
-**Owner**: Seongwoo Choi
+**Owner**: Sungwoo Choi
 
 **Completed**:
 - ✅ API client functions in `frontend/src/lib/api.ts`
@@ -192,7 +192,7 @@ http://localhost:8000/docs
 
 ### 3. ECR Image Upload ⭐
 **Current Status**: Not uploaded
-**Owner**: Seongwoo Choi
+**Owner**: Sungwoo Choi
 
 ```bash
 # Run ecr-upload.bat (Windows)
@@ -374,12 +374,12 @@ Asked for clarification on:
 
 ## 📞 Contacts
 
-- **Backend Development**: Seongwoo Choi
+- **Backend Development**: Sungwoo Choi
 - **Infrastructure Development**: Hyunmin Cho
 - **Frontend Development**: (Developer name)
 
 ---
 
 **Last Update**: 2025-12-05
-**Author**: Seongwoo Choi
+**Author**: Sungwoo Choi
 **Status**: Core Services integration completed - Ready for testing
