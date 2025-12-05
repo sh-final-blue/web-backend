@@ -510,11 +510,13 @@ async def build_and_push(
                     data = {
                         "registry_url": registry_url,
                         "username": username,
-                        "password": password,
                         "workspace_id": workspace_id,
                         "tag": tag,
                         "app_name": final_app_name,
                     }
+                    # password가 제공된 경우만 포함 (IRSA 사용 시 불필요)
+                    if password is not None:
+                        data["password"] = password
 
                     response = await client.post(
                         f"{settings.builder_service_url}/api/v1/build-and-push",
