@@ -189,9 +189,15 @@ export async function deleteFunction(workspaceId: string, functionId: string): P
   });
 }
 
+export interface LogsResponse {
+  logs: LogItem[];
+  total: number;
+}
+
 export async function getFunctionLogs(workspaceId: string, functionId: string): Promise<LogItem[]> {
   // Assuming the backend supports query params for limit, e.g. ?limit=100
-  return fetchApi<LogItem[]>(`/api/workspaces/${workspaceId}/functions/${functionId}/logs?limit=100`);
+  const response = await fetchApi<LogsResponse>(`/api/workspaces/${workspaceId}/functions/${functionId}/logs?limit=100`);
+  return response.logs;
 }
 
 export async function invokeFunction(workspaceId: string, functionId: string, requestBody: any): Promise<LogItem> {

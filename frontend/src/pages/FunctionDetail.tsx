@@ -19,12 +19,18 @@ import type { LokiLogsResponse, PrometheusMetricsResponse } from '@/lib/api';
 
 export default function FunctionDetail() {
   const { workspaceId, functionId } = useParams<{ workspaceId: string; functionId: string }>();
-  const { functions, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics, buildAndDeployFunction } = useApp();
+  const { functions, executionLogs, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics, buildAndDeployFunction } = useApp();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
   const fn = functions.find(f => f.id === functionId);
-  const logs = getFunctionLogs(functionId!);
+  const logs = executionLogs.filter(log => log.functionId === functionId);
+
+  useEffect(() => {
+    if (functionId) {
+      getFunctionLogs(functionId);
+    }
+  }, [functionId, getFunctionLogs]);
 
   const [requestBody, setRequestBody] = useState('{\n  "key": "value"\n}');
   const [isInvoking, setIsInvoking] = useState(false);
