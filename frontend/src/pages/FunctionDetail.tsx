@@ -73,7 +73,7 @@ export default function FunctionDetail() {
     load();
   }, [workspaceId, fn, isFunctionLoading, loadFunctions]);
 
-  const endpointUrl = fn.invocationUrl || `${import.meta.env.VITE_API_URL || window.location.origin}/api/workspaces/${workspaceId}/functions/${functionId}/invoke`;
+  const endpointUrl = fn?.invocationUrl || `${import.meta.env.VITE_API_URL || window.location.origin}/api/workspaces/${workspaceId}/functions/${functionId}/invoke`;
 
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(endpointUrl);
@@ -361,8 +361,8 @@ export default function FunctionDetail() {
                     className="font-mono text-sm min-h-[300px]"
                     placeholder='{"key": "value"}'
                   />
-                  <Button 
-                    onClick={handleInvokeFunction} 
+                  <Button
+                    onClick={handleInvokeFunction}
                     disabled={isInvoking || fn.status === 'disabled'}
                     className="w-full"
                   >
@@ -553,7 +553,7 @@ export default function FunctionDetail() {
               <CardContent>
                 <CodeEditor
                   value={fn.code}
-                  onChange={() => {}}
+                  onChange={() => { }}
                   language="python"
                   height="600px"
                   readOnly
