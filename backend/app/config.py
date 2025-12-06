@@ -27,6 +27,8 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "https://eunha.icu",
         "http://eunha.icu",
+        "https://www.eunha.icu",
+        "http://www.eunha.icu",
     ]
 
     # Builder Service (Core Services)
