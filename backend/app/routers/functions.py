@@ -337,6 +337,8 @@ async def invoke_function(
             },
         )
 
+    print("[FUNCTION]: ", function)
+    print("[FUNCTION]: ", function.get("invocationUrl"))
     # invocationUrl 확인
     invocation_url = function.get("invocationUrl")
     if not invocation_url:
