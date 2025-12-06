@@ -90,3 +90,5 @@ env:
   ENVIRONMENT: "development"
   LOG_LEVEL: "INFO"
   CORS_ORIGINS: '["https://www.eunha.icu", "http://www.eunha.icu"]'
+  PROMETHEUS_SERVICE_URL: "http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090"
+  LOKI_SERVICE_URL: "http://loki-stack.logging.svc.cluster.local:3100"
