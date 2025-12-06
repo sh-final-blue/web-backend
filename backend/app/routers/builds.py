@@ -426,82 +426,73 @@ async def deploy_to_k8s(request: DeployRequest):
     - **enable_autoscaling**: HPA/KEDA 활성화 (기본값: true)
     - **use_spot**: Spot 인스턴스 사용 (기본값: true)
     """
-    try:
-        # Builder Service의 /api/v1/deploy 호출
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            # app_name을 소문자로 변환 (Spin TOML 규칙 준수)
-            app_name_sanitized = request.app_name.lower() if request.app_name else None
+    # Builder Service의 /api/v1/deploy 호출
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        # app_name을 소문자로 변환 (Spin TOML 규칙 준수)
+        app_name_sanitized = request.app_name.lower() if request.app_name else None
 
-            deploy_data = {
-                "app_name": app_name_sanitized,
-                "namespace": request.namespace,
-                "service_account": request.service_account,
-                "cpu_limit": request.cpu_limit,
-                "memory_limit": request.memory_limit,
-                "cpu_request": request.cpu_request,
-                "memory_request": request.memory_request,
-                "image_ref": request.image_ref,
-                "enable_autoscaling": request.enable_autoscaling,
-                "use_spot": request.use_spot,
-                "custom_tolerations": request.custom_tolerations,
-                "custom_affinity": request.custom_affinity,
-                "function_id": request.function_id,  # 로그 구분용 Function ID
-            }
+        deploy_data = {
+            "app_name": app_name_sanitized,
+            "namespace": request.namespace,
+            "service_account": request.service_account,
+            "cpu_limit": request.cpu_limit,
+            "memory_limit": request.memory_limit,
+            "cpu_request": request.cpu_request,
+            "memory_request": request.memory_request,
+            "image_ref": request.image_ref,
+            "enable_autoscaling": request.enable_autoscaling,
+            "use_spot": request.use_spot,
+            "custom_tolerations": request.custom_tolerations,
+            "custom_affinity": request.custom_affinity,
+            "function_id": request.function_id,  # 로그 구분용 Function ID
+        }
 
-            # 오토스케일링이 비활성화된 경우에만 replicas를 설정
-            if not request.enable_autoscaling:
-                deploy_data["replicas"] = request.replicas
+        # 오토스케일링이 비활성화된 경우에만 replicas를 설정
+        if not request.enable_autoscaling:
+            deploy_data["replicas"] = request.replicas
 
-            logger.info(f"Sending deploy request to builder service with data: {deploy_data}")
-            response = await client.post(
-                f"{settings.builder_service_url}/api/v1/deploy",
-                json=deploy_data,
-            )
-            response.raise_for_status()  # Let httpx raise its own exception on error
-            deploy_response = response.json()
+        logger.info(f"Final deploy data being sent: {deploy_data}")
+        response = await client.post(
+            f"{settings.builder_service_url}/api/v1/deploy",
+            json=deploy_data,
+        )
+        
+        # --- GUARANTEED LOGGING ---
+        logger.info(f"Builder service response received. Status: {response.status_code}, Body: {response.text}")
+        # --- END GUARANTEED LOGGING ---
 
-            # Service 생성 대기 (5초) 및 재조회
-            # SpinApp 생성 직후에는 Service가 생성되지 않아 endpoint가 null일 수 있음
-            if not deploy_response.get("endpoint"):
-                logger.info("Endpoint not ready, waiting 5 seconds for Service creation...")
-                await asyncio.sleep(5)
+        response.raise_for_status()
+        deploy_response = response.json()
+
+        # Service 생성 대기 (5초) 및 재조회
+        if not deploy_response.get("endpoint"):
+            logger.info("Endpoint not ready, waiting 5 seconds...")
+            await asyncio.sleep(5)
+            
+            generated_app_name = deploy_response.get("app_name")
+            if generated_app_name:
+                deploy_data["app_name"] = generated_app_name
                 
-                # 첫 번째 응답에서 받은 app_name을 사용하여 재조회 (동일 앱 대상)
-                generated_app_name = deploy_response.get("app_name")
-                if generated_app_name:
-                    deploy_data["app_name"] = generated_app_name
-                    
-                    logger.info(f"Re-sending deploy request to builder service with data: {deploy_data}")
-                    response = await client.post(
-                        f"{settings.builder_service_url}/api/v1/deploy",
-                        json=deploy_data,
-                    )
-                    # Also log the response for the retry and raise the original exception
-                    logger.info(f"Received response on retry. Status: {response.status_code}, Body: {response.text}")
-                    response.raise_for_status()
-                    deploy_response = response.json()
+                logger.info(f"Re-sending deploy data: {deploy_data}")
+                response = await client.post(
+                    f"{settings.builder_service_url}/api/v1/deploy",
+                    json=deploy_data,
+                )
+                
+                logger.info(f"Builder service retry response. Status: {response.status_code}, Body: {response.text}")
+                response.raise_for_status()
+                deploy_response = response.json()
 
-            return DeployResponse(
-                app_name=deploy_response.get("app_name"),
-                namespace=deploy_response.get("namespace"),
-                service_name=deploy_response.get("service_name"),
-                service_status=deploy_response.get("service_status", "pending"),
-                endpoint=deploy_response.get("endpoint"),
-                enable_autoscaling=deploy_response.get("enable_autoscaling"),
-                use_spot=deploy_response.get("use_spot"),
-                error=deploy_response.get("error"),
-            )
-
-    except httpx.HTTPError as e:
-        error_message = f"Deploy HTTP error: {str(e)}"
-        # This block will now correctly capture the response body
-        if e.response:
-            error_message += f" | Response: {e.response.text}"
-        logger.error(error_message)
-        raise HTTPException(status_code=500, detail=f"HTTP error: {str(e)}")
-    except Exception as e:
-        logger.error(f"Deploy endpoint error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        return DeployResponse(
+            app_name=deploy_response.get("app_name"),
+            namespace=deploy_response.get("namespace"),
+            service_name=deploy_response.get("service_name"),
+            service_status=deploy_response.get("service_status", "pending"),
+            endpoint=deploy_response.get("endpoint"),
+            enable_autoscaling=deploy_response.get("enable_autoscaling"),
+            use_spot=deploy_response.get("use_spot"),
+            error=deploy_response.get("error"),
+        )
 
 
 # ===== POST /api/v1/build-and-push =====
