@@ -363,8 +363,7 @@ async def invoke_function(
             detail={
                 "error": {
                     "code": "NOT_DEPLOYED",
-                    "message": f"Function {function_id} is not deployed (missing invocationUrl). Please deploy the function first.",
-                    "debug": function
+                    "message": f"Function {function_id} is not deployed (missing invocationUrl). Please deploy the function first. {function}",
                 }
             },
         )

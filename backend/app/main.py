@@ -3,6 +3,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import workspaces, functions, logs, builds, metrics
+import logging
+
+# 기본 로깅 설정
+logging.basicConfig(
+    level=settings.log_level,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 # FastAPI 앱 생성
 app = FastAPI(

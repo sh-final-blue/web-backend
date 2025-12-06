@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # FastAPI
     environment: str = "development"
-    log_level: str = "INFO"
+    log_level: str = "DEBUG"
 
     # CORS
     cors_origins: List[str] = [
