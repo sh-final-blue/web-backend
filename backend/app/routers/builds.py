@@ -125,7 +125,7 @@ async def _real_push_process(
     task_id: str,
     registry_url: str,
     username: str,
-    password: str,
+    password: Optional[str],
     tag: str,
     s3_source_path: str
 ):
@@ -138,11 +138,12 @@ async def _real_push_process(
             push_data = {
                 "registry_url": registry_url,
                 "username": username,
-                "password": password,
                 "tag": tag,
                 "workspace_id": workspace_id,
                 "s3_source_path": s3_source_path,
             }
+            if password:
+                push_data["password"] = password
 
             response = await client.post(
                 f"{settings.builder_service_url}/api/v1/push",
@@ -361,8 +362,8 @@ async def push_to_ecr(background_tasks: BackgroundTasks, request: PushRequest):
     ECR에 이미지 푸시
 
     - **registry_url**: ECR 레지스트리 URL
-    - **username**: 레지스트리 사용자명
-    - **password**: 레지스트리 비밀번호
+    - **username**: 레지스트리 사용자명 (기본값: AWS)
+    - **password**: 레지스트리 비밀번호 (IRSA 사용 시 생략 가능)
     - **tag**: 이미지 태그
     - **app_dir**: 애플리케이션 디렉토리 경로
     """

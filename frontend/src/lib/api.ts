@@ -252,10 +252,11 @@ export interface WorkspaceTasksResponse {
 
 export interface PushRequest {
   registry_url: string;
-  username: string;
-  password: string;
+  username?: string;
+  password?: string | null;
   tag?: string;
-  app_dir: string;
+  app_dir?: string;
+  workspace_id?: string;
 }
 
 export interface ScaffoldRequest {
@@ -350,9 +351,15 @@ export async function getWorkspaceTasks(workspaceId: string): Promise<WorkspaceT
  * ECR에 이미지 푸시
  */
 export async function pushToECR(data: PushRequest): Promise<BuildResponse> {
+  const payload: PushRequest = {
+    tag: 'sha256',
+    username: 'AWS',
+    workspace_id: 'ws-default',
+    ...data,
+  };
   return fetchApi<BuildResponse>('/api/v1/push', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -382,7 +389,7 @@ export async function deployToK8s(data: DeployRequest): Promise<DeployResponse> 
 export async function buildAndPush(
   file: File,
   registryUrl: string,
-  username: string,
+  username: string = 'AWS',
   password: string | null = null,
   tag: string = 'sha256',
   appName?: string,
@@ -392,7 +399,7 @@ export async function buildAndPush(
   formData.append('file', file);
   formData.append('registry_url', registryUrl);
   formData.append('username', username);
-  if (password !== null && password !== '') {
+  if (password) {
     formData.append('password', password);
   }
   formData.append('tag', tag);
