@@ -350,6 +350,7 @@ kubectl create namespace <namespace>
 - `username` and `password` are optional in `/api/v1/build-and-push` and `/api/v1/push` (defaults to dummy password for IRSA)
 - Builder Service uses IRSA for ECR authentication
 - Backward compatible with token-based auth
+- Accepts `image_url` or `image_uri` from Builder Service (compatibility)
 
 ### ✨ Status Compatibility
 - Supports both "completed" and "done" status from Builder Service

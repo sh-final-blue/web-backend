@@ -173,7 +173,7 @@ async def _real_push_process(
 
                 if status in ["completed", "done"]:
                     result = status_data.get("result", {})
-                    image_url = result.get("image_url")
+                    image_url = result.get("image_url") or result.get("image_uri")
 
                     db_client.update_build_task_status(
                         workspace_id, task_id, "completed", image_url=image_url
@@ -596,7 +596,7 @@ async def build_and_push(
                         if status in ["completed", "done"]:
                             result = status_data.get("result", {})
                             wasm_path = result.get("wasm_path")
-                            image_url = result.get("image_url")
+                            image_url = result.get("image_url") or result.get("image_uri")
 
                             db_client.update_build_task_status(
                                 workspace_id, task_id, "completed",

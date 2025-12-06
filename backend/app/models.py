@@ -146,6 +146,7 @@ class BuildTaskResult(BaseModel):
 
     wasm_path: Optional[str] = Field(None, description="WASM 파일 경로")
     image_url: Optional[str] = Field(None, description="ECR 이미지 URL")
+    image_uri: Optional[str] = Field(None, description="ECR 이미지 URI (호환 필드)")
     file_path: Optional[str] = Field(None, description="업로드된 파일 경로")
 
 
