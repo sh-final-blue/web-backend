@@ -9,10 +9,22 @@ import httpx
 import uuid
 import time
 import logging
-
+from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def normalize_invocation_url(url: str) -> str:
+    """Ensure invocation URLs always include a scheme for httpx."""
+    if not url:
+        return ""
+
+    normalized = url.strip()
+    parsed = urlparse(normalized)
+    if parsed.scheme:
+        return normalized
+    return f"http://{normalized}"
 
 
 @router.post(
@@ -240,7 +252,8 @@ async def update_function(workspace_id: str, function_id: str, updates: Function
     if updates.status is not None:
         update_data["status"] = updates.status
     if updates.invocationUrl is not None:
-        update_data["invocationUrl"] = updates.invocationUrl
+        normalized_url = normalize_invocation_url(updates.invocationUrl)
+        update_data["invocationUrl"] = normalized_url or None
     if updates.code is not None:
         # Base64 검증
         try:
@@ -343,7 +356,7 @@ async def invoke_function(
         )
 
     # invocationUrl 확인
-    invocation_url = function.get("invocationUrl")
+    invocation_url = normalize_invocation_url(function.get("invocationUrl"))
     if not invocation_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
