@@ -104,7 +104,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, [currentWorkspaceId]);
 
-  const loadWorkspaces = async () => {
+  const loadWorkspaces = useCallback(async () => {
     try {
       const data = await api.getWorkspaces();
       const mapped = data.map(ws => ({
@@ -116,9 +116,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Failed to load workspaces:', error);
     }
-  };
+  }, []);
 
-  const loadFunctions = async (workspaceId: string) => {
+  const loadFunctions = useCallback(async (workspaceId: string) => {
     try {
       const data = await api.getFunctions(workspaceId);
       const mapped = data.map(fn => ({
@@ -133,9 +133,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (error) {
       console.error('Failed to load functions:', error);
     }
-  };
+  }, []);
 
-  const createWorkspace = async (name: string, description?: string): Promise<Workspace> => {
+  const createWorkspace = useCallback(async (name: string, description?: string): Promise<Workspace> => {
     try {
       const ws = await api.createWorkspace({ name, description: description || '' });
       const newWorkspace: Workspace = {
@@ -149,9 +149,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to create workspace:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const updateWorkspace = async (id: string, updates: Partial<Workspace>): Promise<void> => {
+  const updateWorkspace = useCallback(async (id: string, updates: Partial<Workspace>): Promise<void> => {
     try {
       const apiUpdates: api.UpdateWorkspaceData = {};
       if (updates.name) apiUpdates.name = updates.name;
@@ -169,9 +169,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to update workspace:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const deleteWorkspace = async (id: string): Promise<void> => {
+  const deleteWorkspace = useCallback(async (id: string): Promise<void> => {
     try {
       await api.deleteWorkspace(id);
       setWorkspaces(prev => prev.filter(ws => ws.id !== id));
@@ -182,9 +182,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to delete workspace:', error);
       throw error;
     }
-  };
+  }, [currentWorkspaceId]);
 
-  const createFunction = async (config: Omit<FunctionConfig, 'id' | 'lastModified' | 'invocations24h' | 'errors24h' | 'avgDuration' | 'invocationUrl' | 'status' | 'lastDeployed'>): Promise<FunctionConfig> => {
+  const createFunction = useCallback(async (config: Omit<FunctionConfig, 'id' | 'lastModified' | 'invocations24h' | 'errors24h' | 'avgDuration' | 'invocationUrl' | 'status' | 'lastDeployed'>): Promise<FunctionConfig> => {
     if (!currentWorkspaceId) throw new Error('No workspace selected');
 
     try {
@@ -221,9 +221,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to create function:', error);
       throw error;
     }
-  };
+  }, [currentWorkspaceId]);
 
-  const updateFunction = async (id: string, updates: Partial<FunctionConfig>): Promise<void> => {
+  const updateFunction = useCallback(async (id: string, updates: Partial<FunctionConfig>): Promise<void> => {
     if (!currentWorkspaceId) throw new Error('No workspace selected');
 
     try {
@@ -251,9 +251,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to update function:', error);
       throw error;
     }
-  };
+  }, [currentWorkspaceId]);
 
-  const deleteFunction = async (id: string): Promise<void> => {
+  const deleteFunction = useCallback(async (id: string): Promise<void> => {
     if (!currentWorkspaceId) throw new Error('No workspace selected');
     
     try {
@@ -267,9 +267,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to delete function:', error);
       throw error;
     }
-  };
+  }, [currentWorkspaceId]);
 
-  const invokeFunction = async (id: string, requestBody: any): Promise<ExecutionLog> => {
+  const invokeFunction = useCallback(async (id: string, requestBody: any): Promise<ExecutionLog> => {
     if (!currentWorkspaceId) throw new Error('No workspace selected');
 
     const fn = functions.find(f => f.id === id);
@@ -288,9 +288,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to invoke function:', error);
       throw error;
     }
-  };
+  }, [currentWorkspaceId, functions]);
 
-  const getFunctionLogs = async (functionId: string): Promise<ExecutionLog[]> => {
+  const getFunctionLogs = useCallback(async (functionId: string): Promise<ExecutionLog[]> => {
     if (!currentWorkspaceId) return [];
 
     try {
@@ -305,9 +305,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to load logs:', error);
       return [];
     }
-  };
+  }, [currentWorkspaceId]);
 
-  const getLokiLogs = async (functionId: string, limit: number = 100): Promise<LokiLogsResponse> => {
+  const getLokiLogs = useCallback(async (functionId: string, limit: number = 100): Promise<LokiLogsResponse> => {
     try {
       const response = await api.getLokiLogs(functionId, limit);
       return response;
@@ -315,9 +315,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to load Loki logs:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const getPrometheusMetrics = async (functionId: string): Promise<PrometheusMetricsResponse> => {
+  const getPrometheusMetrics = useCallback(async (functionId: string): Promise<PrometheusMetricsResponse> => {
     try {
       const response = await api.getPrometheusMetrics(functionId);
       return response;
@@ -325,9 +325,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Failed to load Prometheus metrics:', error);
       throw error;
     }
-  };
+  }, []);
 
-  const buildAndDeployFunction = async (
+  const buildAndDeployFunction = useCallback(async (
     functionId: string,
     code: string,
     onProgress?: (status: string) => void
@@ -439,7 +439,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       throw error;
     }
-  };
+  }, [currentWorkspaceId, functions]);
 
   useEffect(() => {
     // Expose API functions to window for easier console testing
@@ -460,27 +460,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  const contextValue = React.useMemo(() => ({
+    workspaces,
+    functions,
+    executionLogs,
+    currentWorkspaceId,
+    setCurrentWorkspaceId,
+    createWorkspace,
+    updateWorkspace,
+    deleteWorkspace,
+    createFunction,
+    updateFunction,
+    deleteFunction,
+    invokeFunction,
+    getFunctionLogs,
+    loadFunctions,
+    getLokiLogs,
+    getPrometheusMetrics,
+    buildAndDeployFunction,
+  }), [
+    workspaces,
+    functions,
+    executionLogs,
+    currentWorkspaceId,
+    createWorkspace,
+    updateWorkspace,
+    deleteWorkspace,
+    createFunction,
+    updateFunction,
+    deleteFunction,
+    invokeFunction,
+    getFunctionLogs,
+    loadFunctions,
+    getLokiLogs,
+    getPrometheusMetrics,
+    buildAndDeployFunction,
+  ]);
 
   return (
-    <AppContext.Provider value={{
-      workspaces,
-      functions,
-      executionLogs,
-      currentWorkspaceId,
-      setCurrentWorkspaceId,
-      createWorkspace,
-      updateWorkspace,
-      deleteWorkspace,
-      createFunction,
-      updateFunction,
-      deleteFunction,
-      invokeFunction,
-      getFunctionLogs,
-      loadFunctions,
-      getLokiLogs,
-      getPrometheusMetrics,
-      buildAndDeployFunction,
-    }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

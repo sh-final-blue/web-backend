@@ -155,9 +155,12 @@ export default function FunctionDetail() {
 
   // Auto-load on mount
   useEffect(() => {
-    loadLokiLogs();
-    loadPrometheusMetrics();
-  }, [loadLokiLogs, loadPrometheusMetrics]);
+    if (functionId) {
+      loadLokiLogs();
+      loadPrometheusMetrics();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [functionId]);
 
   // Auto-deploy on mount if status is 'building'
   useEffect(() => {
