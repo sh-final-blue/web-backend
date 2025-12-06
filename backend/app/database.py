@@ -156,16 +156,28 @@ class DynamoDBClient:
         """함수 수정"""
         update_expr = ["lastModified = :now"]
         expr_values = {":now": datetime.utcnow().isoformat()}
+        expr_names: Dict[str, str] = {}
 
         for key, value in updates.items():
             if value is not None:
-                update_expr.append(f"{key} = :{key}")
-                expr_values[f":{key}"] = value
+                placeholder = f":{key}"
+                attr_name = key
+
+                # Handle DynamoDB reserved keywords
+                if key == "status":
+                    expr_names["#status"] = "status"
+                    attr_name = "#status"
+
+                update_expr.append(f"{attr_name} = {placeholder}")
+                expr_values[placeholder] = value
+
+        extra_kwargs = {"ExpressionAttributeNames": expr_names} if expr_names else {}
 
         response = self.table.update_item(
             Key={"PK": f"WS#{workspace_id}", "SK": f"FN#{function_id}"},
             UpdateExpression="SET " + ", ".join(update_expr),
             ExpressionAttributeValues=expr_values,
+            **extra_kwargs,
             ReturnValues="ALL_NEW",
         )
         return response.get("Attributes")

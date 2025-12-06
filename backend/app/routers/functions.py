@@ -404,7 +404,7 @@ async def invoke_function(
 
     try:
         # 실제 Function 엔드포인트 호출
-        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds)) as client:
             response = await client.post(
                 invocation_url,
                 json=request_body,
