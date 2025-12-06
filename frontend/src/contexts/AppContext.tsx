@@ -349,7 +349,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         file,
         '217350599014.dkr.ecr.ap-northeast-2.amazonaws.com/blue-final-faas-app',
         'AWS',
-        null, // IRSA로 Builder Service에서 자동 처리
+        undefined, // IRSA + 더미 패스워드 자동 처리
         'sha256',
         fn.name,
         currentWorkspaceId

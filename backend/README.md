@@ -277,7 +277,7 @@ curl -X POST https://api.eunha.icu/api/workspaces \
 POST /api/v1/build-and-push
 - file: app.py (Spin Python format)
 - registry_url: 217350599014.dkr.ecr.ap-northeast-2.amazonaws.com/blue-final-faas-app
-- username/password: optional (IRSA recommended)
+- username/password: optional (default username=AWS, password=dummy-password for IRSA)
 
 # 2. Poll task status
 GET /api/v1/tasks/{task_id}?workspace_id=ws-default
@@ -347,7 +347,7 @@ kubectl create namespace <namespace>
 ## 📝 Latest Changes (2025-12-06)
 
 ### ✨ IRSA Support
-- `username` and `password` are now optional in `/api/v1/build-and-push` and `/api/v1/push`
+- `username` and `password` are optional in `/api/v1/build-and-push` and `/api/v1/push` (defaults to dummy password for IRSA)
 - Builder Service uses IRSA for ECR authentication
 - Backward compatible with token-based auth
 

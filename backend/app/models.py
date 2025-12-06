@@ -192,8 +192,8 @@ class PushRequest(BaseModel):
 
     registry_url: str = Field(..., description="ECR 레지스트리 URL")
     username: str = Field(default="AWS", description="레지스트리 사용자명 (IRSA 사용 시 기본값 AWS)")
-    password: Optional[str] = Field(
-        default=None, description="레지스트리 비밀번호 (IRSA 사용 시 불필요)"
+    password: str = Field(
+        default="dummy-password", description="레지스트리 비밀번호 (IRSA 사용 시 더미 값 자동 사용)"
     )
     tag: str = Field(default="sha256", description="이미지 태그")
     app_dir: Optional[str] = Field(None, description="애플리케이션 디렉토리 경로")
@@ -258,8 +258,8 @@ class BuildAndPushRequest(BaseModel):
 
     registry_url: str = Field(..., description="ECR 레지스트리 URL")
     username: str = Field(default="AWS", description="레지스트리 사용자명 (IRSA 사용 시 기본값 AWS)")
-    password: Optional[str] = Field(
-        default=None, description="레지스트리 비밀번호 (IRSA 사용 시 불필요)"
+    password: str = Field(
+        default="dummy-password", description="레지스트리 비밀번호 (IRSA 사용 시 더미 값 자동 사용)"
     )
     tag: str = Field(default="sha256", description="이미지 태그")
     app_name: Optional[str] = Field(None, description="애플리케이션 이름")

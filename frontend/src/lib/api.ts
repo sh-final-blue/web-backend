@@ -355,7 +355,10 @@ export async function pushToECR(data: PushRequest): Promise<BuildResponse> {
     tag: 'sha256',
     username: 'AWS',
     workspace_id: 'ws-default',
+    password: 'dummy-password',
     ...data,
+    // 빈 문자열/null이면 더미 값으로 덮어쓰기
+    password: data.password && data.password !== '' ? data.password : 'dummy-password',
   };
   return fetchApi<BuildResponse>('/api/v1/push', {
     method: 'POST',
@@ -390,7 +393,7 @@ export async function buildAndPush(
   file: File,
   registryUrl: string,
   username: string = 'AWS',
-  password: string | null = null,
+  password: string | null = 'dummy-password',
   tag: string = 'sha256',
   appName?: string,
   workspaceId: string = 'ws-default'
@@ -399,9 +402,7 @@ export async function buildAndPush(
   formData.append('file', file);
   formData.append('registry_url', registryUrl);
   formData.append('username', username);
-  if (password) {
-    formData.append('password', password);
-  }
+  formData.append('password', password || 'dummy-password');
   formData.append('tag', tag);
   if (appName) {
     formData.append('app_name', appName);

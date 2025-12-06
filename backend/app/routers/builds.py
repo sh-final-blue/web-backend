@@ -130,6 +130,7 @@ async def _real_push_process(
     s3_source_path: str
 ):
     """실제 Builder Service의 Push API 호출 및 폴링"""
+    dummy_password = "dummy-password"
     try:
         db_client.update_build_task_status(workspace_id, task_id, "running")
 
@@ -138,12 +139,11 @@ async def _real_push_process(
             push_data = {
                 "registry_url": registry_url,
                 "username": username,
+                "password": password or dummy_password,
                 "tag": tag,
                 "workspace_id": workspace_id,
                 "s3_source_path": s3_source_path,
             }
-            if password:
-                push_data["password"] = password
 
             response = await client.post(
                 f"{settings.builder_service_url}/api/v1/push",
@@ -363,7 +363,7 @@ async def push_to_ecr(background_tasks: BackgroundTasks, request: PushRequest):
 
     - **registry_url**: ECR 레지스트리 URL
     - **username**: 레지스트리 사용자명 (기본값: AWS)
-    - **password**: 레지스트리 비밀번호 (IRSA 사용 시 생략 가능)
+    - **password**: 레지스트리 비밀번호 (IRSA 사용 시 더미 값 자동 사용)
     - **tag**: 이미지 태그
     - **app_dir**: 애플리케이션 디렉토리 경로
     """
@@ -510,7 +510,7 @@ async def build_and_push(
     file: UploadFile = File(...),
     registry_url: str = Form(...),
     username: str = Form(default="AWS"),
-    password: Optional[str] = Form(None),
+    password: Optional[str] = Form("dummy-password"),
     tag: str = Form(default="sha256"),
     app_name: Optional[str] = Form(None),
     workspace_id: str = Form(default="ws-default"),
@@ -552,6 +552,7 @@ async def build_and_push(
             """Build and Push를 순차적으로 실행하는 래퍼"""
             try:
                 db_client.update_build_task_status(workspace_id, task_id, "running")
+                dummy_password = "dummy-password"
 
                 # Builder Service에 build-and-push 요청
                 async with httpx.AsyncClient(timeout=30.0) as client:
@@ -562,10 +563,8 @@ async def build_and_push(
                         "workspace_id": workspace_id,
                         "tag": tag,
                         "app_name": final_app_name,
+                        "password": password or dummy_password,
                     }
-                    # password가 제공된 경우만 포함 (IRSA 사용 시 불필요)
-                    if password is not None:
-                        data["password"] = password
 
                     response = await client.post(
                         f"{settings.builder_service_url}/api/v1/build-and-push",
