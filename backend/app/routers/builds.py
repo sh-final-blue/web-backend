@@ -468,10 +468,13 @@ async def deploy_to_k8s(request: DeployRequest):
                 if generated_app_name:
                     deploy_data["app_name"] = generated_app_name
                     
+                    logger.info(f"Re-sending deploy request to builder service with data: {deploy_data}")
                     response = await client.post(
                         f"{settings.builder_service_url}/api/v1/deploy",
                         json=deploy_data,
                     )
+                    # Also log the response for the retry and raise the original exception
+                    logger.info(f"Received response on retry. Status: {response.status_code}, Body: {response.text}")
                     response.raise_for_status()
                     deploy_response = response.json()
 
