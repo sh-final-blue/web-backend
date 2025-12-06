@@ -285,6 +285,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       };
 
       setExecutionLogs(prev => [log, ...prev]);
+      // Optimistically update function metrics so dashboard shows recent invocations without reload
+      setFunctions(prev =>
+        prev.map(f => {
+          if (f.id !== id) return f;
+          const prevInv = f.invocations24h || 0;
+          const prevErr = f.errors24h || 0;
+          const prevAvg = f.avgDuration || 0;
+          const newInv = prevInv + 1;
+          const newErr = log.status === 'success' ? prevErr : prevErr + 1;
+          const newAvg = newInv > 0 ? Math.round((prevAvg * prevInv + log.duration) / newInv) : log.duration;
+          return {
+            ...f,
+            invocations24h: newInv,
+            errors24h: newErr,
+            avgDuration: newAvg,
+          };
+        })
+      );
+
       return log;
     } catch (error) {
       console.error('Failed to invoke function:', error);
