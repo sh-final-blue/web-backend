@@ -2,12 +2,13 @@
 from fastapi import APIRouter, HTTPException, status, Request
 from app.models import FunctionCreate, FunctionUpdate, FunctionConfig
 from app.database import db_client, s3_client
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 from datetime import datetime
 import base64
 import httpx
 import uuid
 import time
+import re
 import logging
 from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
@@ -25,6 +26,20 @@ def normalize_invocation_url(url: str) -> str:
     if parsed.scheme:
         return normalized
     return f"http://{normalized}"
+
+
+def build_fallback_host(function: Dict[str, Any], namespace: str = "default") -> Optional[str]:
+    """Build a K8s Service DNS name from the function name for fallback lookups."""
+    name = function.get("name")
+    if not name:
+        return None
+
+    # K8s service DNS label rules: lower-case alphanumeric or '-', must start/end with alnum
+    slug = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")
+    if not slug:
+        return None
+
+    return f"{slug}.{namespace}.svc.cluster.local"
 
 
 @router.post(
@@ -358,6 +373,15 @@ async def invoke_function(
     # invocationUrl 확인
     invocation_url = normalize_invocation_url(function.get("invocationUrl"))
     if not invocation_url:
+        fallback_host = build_fallback_host(function)
+        if fallback_host:
+            invocation_url = f"http://{fallback_host}"
+            logger.info(
+                "Function %s missing invocationUrl. Using fallback host %s",
+                function_id,
+                invocation_url,
+            )
+    if not invocation_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -415,6 +439,21 @@ async def invoke_function(
                 db_client.create_log(log_entry)
             except Exception as e:
                 logger.error(f"Failed to save log: {e}")
+
+            # Persist fallback invocation URL if we had to derive it and it worked
+            if not function.get("invocationUrl") and invocation_url:
+                try:
+                    db_client.update_function(
+                        workspace_id,
+                        function_id,
+                        {"invocationUrl": invocation_url},
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to persist fallback invocationUrl for %s: %s",
+                        function_id,
+                        e,
+                    )
 
             # 응답 반환
             return {
