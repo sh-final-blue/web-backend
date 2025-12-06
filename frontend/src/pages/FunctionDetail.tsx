@@ -485,9 +485,9 @@ export default function FunctionDetail() {
                   <div className="space-y-2 max-h-[500px] overflow-y-auto">
                     {lokiLogs.logs.map((log, idx) => (
                       <div key={idx} className="p-3 bg-muted rounded-md font-mono text-xs">
-                        <div className="text-muted-foreground mb-1">
-                          {toKSTDate(parseInt(log.timestamp) / 1000000).toLocaleString()}
-                        </div>
+                          <div className="text-muted-foreground mb-1">
+                            {new Date(parseInt(log.timestamp) / 1000000).toLocaleString()}
+                          </div>
                         <div>{log.line}</div>
                       </div>
                     ))}
