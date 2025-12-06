@@ -446,10 +446,12 @@ async def deploy_to_k8s(request: DeployRequest):
                 "function_id": request.function_id,  # 로그 구분용 Function ID
             }
 
+            logger.info(f"Sending deploy request to builder service with data: {deploy_data}")
             response = await client.post(
                 f"{settings.builder_service_url}/api/v1/deploy",
                 json=deploy_data,
             )
+            logger.info(f"Received response from builder service. Status: {response.status_code}, Body: {response.text}")
             response.raise_for_status()
             deploy_response = response.json()
 
