@@ -17,13 +17,19 @@ import { toast } from 'sonner';
 
 const DEFAULT_CODE = `from spin_sdk.http import IncomingHandler, Response
 
+
 class SimpleHandler(IncomingHandler):
     def handle_request(self, request):
         return Response(
             200,
             {"content-type": "text/plain"},
-            bytes("Hello from Spin!", "utf-8")
+            bytes("Hello from Spin!", "utf-8"),
         )
+
+
+def init_incoming_handler():
+    # spin-python requires a factory returning the handler instance
+    return SimpleHandler()
 `;
 
 export default function NewFunction() {
