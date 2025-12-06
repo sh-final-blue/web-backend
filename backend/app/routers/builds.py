@@ -511,6 +511,11 @@ async def build_and_push(
         task_id = task["task_id"]
         final_app_name = task["app_name"]
 
+        # 태그가 sha256(기본값)인 경우, task_id를 포함한 고유 태그 생성
+        effective_tag = tag
+        if tag == "sha256":
+            effective_tag = f"task-{task_id}"
+
         # S3에 저장
         s3_path = s3_client.save_build_source(
             workspace_id, task_id, file_content, file.filename
@@ -536,7 +541,7 @@ async def build_and_push(
                         "registry_url": registry_url,
                         "username": normalized_username,
                         "workspace_id": workspace_id,
-                        "tag": tag,
+                        "tag": effective_tag,
                         "app_name": final_app_name,
                         "password": normalized_password,
                     }
@@ -571,13 +576,33 @@ async def build_and_push(
                         if status in ["completed", "done"]:
                             result = status_data.get("result", {})
                             wasm_path = result.get("wasm_path")
+                            
+                            # 이미지 URL이 없으면 백엔드에서 조합해서 생성
                             image_url = result.get("image_url") or result.get("image_uri")
+                            if not image_url and registry_url and effective_tag:
+                                image_url = f"{registry_url}:{effective_tag}"
 
-                            logger.info(f"Build-and-push task {task_id} completed")
+                            # 상태 업데이트
+                            db_client.update_build_task_status(
+                                workspace_id,
+                                task_id,
+                                status="completed",
+                                wasm_path=wasm_path,
+                                image_url=image_url
+                            )
+
+                            logger.info(f"Build-and-push task {task_id} completed: {image_url}")
                             break
 
                         elif status == "failed":
                             error_msg = status_data.get("error", "Build-and-push failed")
+                            
+                            db_client.update_build_task_status(
+                                workspace_id,
+                                task_id,
+                                status="failed",
+                                error_message=error_msg
+                            )
                             logger.error(f"Build-and-push task {task_id} failed: {error_msg}")
                             break
 
@@ -586,6 +611,12 @@ async def build_and_push(
 
                 else:
                     error_msg = "Build-and-push timeout (10 minutes exceeded)"
+                    db_client.update_build_task_status(
+                        workspace_id,
+                        task_id,
+                        status="failed",
+                        error_message=error_msg
+                    )
                     logger.error(f"Build-and-push task {task_id} timed out")
 
             except httpx.HTTPError as e:
