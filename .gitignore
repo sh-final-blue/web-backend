@@ -3,3 +3,6 @@
 
 # # Reference folder
 # reference/
+
+# Ignore builder source drop
+web-faas-builder-main/
