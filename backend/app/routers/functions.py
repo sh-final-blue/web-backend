@@ -400,10 +400,11 @@ async def invoke_function(
 
     # 실행 시작 시간
     start_time = time.time()
+    timeout_seconds = float(function.get("timeout", 30) or 30)
 
     try:
         # 실제 Function 엔드포인트 호출
-        async with httpx.AsyncClient(timeout=function.get("timeout", 30)) as client:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
             response = await client.post(
                 invocation_url,
                 json=request_body,
@@ -476,7 +477,7 @@ async def invoke_function(
             detail={
                 "error": {
                     "code": "TIMEOUT",
-                    "message": f"Function execution timed out after {function.get('timeout', 30)}s",
+                    "message": f"Function execution timed out after {timeout_seconds}s",
                 }
             },
         )
