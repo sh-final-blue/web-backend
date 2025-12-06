@@ -15,35 +15,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-const DEFAULT_CODE = `def handler(event, context):
-    """
-    Handle incoming HTTP requests.
-    
-    Args:
-        event: Dict containing request data
-            - body: Request body (parsed JSON)
-            - query: Query parameters
-            - headers: Request headers
-            - method: HTTP method
-        context: Execution context
-    
-    Returns:
-        Dict with 'statusCode' and 'body' keys
-    """
-    
-    # Get request body
-    body = event.get('body', {})
-    
-    # Process your logic here
-    response_data = {
-        'message': 'Hello from your serverless function!',
-        'received': body
-    }
-    
-    return {
-        'statusCode': 200,
-        'body': response_data
-    }
+const DEFAULT_CODE = `from spin_sdk.http import IncomingHandler, Response
+
+class SimpleHandler(IncomingHandler):
+    def handle_request(self, request):
+        return Response(
+            200,
+            {"content-type": "text/plain"},
+            bytes("Hello from Spin!", "utf-8")
+        )
 `;
 
 export default function NewFunction() {
