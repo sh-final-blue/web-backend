@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import * as api from '../lib/api';
 import type { LokiLogsResponse, PrometheusMetricsResponse, BuildResponse, TaskStatusResponse, DeployResponse } from '../lib/api';
 
