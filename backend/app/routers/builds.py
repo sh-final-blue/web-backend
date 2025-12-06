@@ -454,9 +454,7 @@ async def deploy_to_k8s(request: DeployRequest):
                 f"{settings.builder_service_url}/api/v1/deploy",
                 json=deploy_data,
             )
-            logger.info(f"Received response from builder service. Status: {response.status_code}, Body: {response.text}")
-            if response.status_code >= 400:
-                raise httpx.HTTPError(f"Builder service returned status {response.status_code}: {response.text}")
+            response.raise_for_status()  # Let httpx raise its own exception on error
             deploy_response = response.json()
 
             # Service 생성 대기 (5초) 및 재조회
@@ -490,6 +488,7 @@ async def deploy_to_k8s(request: DeployRequest):
 
     except httpx.HTTPError as e:
         error_message = f"Deploy HTTP error: {str(e)}"
+        # This block will now correctly capture the response body
         if e.response:
             error_message += f" | Response: {e.response.text}"
         logger.error(error_message)
