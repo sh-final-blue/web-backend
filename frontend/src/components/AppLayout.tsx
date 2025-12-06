@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '@/contexts/AppContext';
 import { Button } from '@/components/ui/button';
+import { AppFooter } from '@/components/AppFooter';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -29,13 +30,19 @@ export const AppLayout = ({ children, sidebar, showWorkspaceSelector = true }: A
   const { workspaces, currentWorkspaceId, setCurrentWorkspaceId } = useApp();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  
+
   const currentWorkspace = workspaces.find(ws => ws.id === currentWorkspaceId);
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
   };
 
+  // ...existing code...
+  // Example: Replace hardcoded title with localized title
+  // Find the location where the app title is rendered and use t('app.title')
+  // For example:
+  // <div className="app-title">{t('app.title')}</div>
+  // ...existing code...
   return (
     <div className="min-h-screen flex flex-col w-full bg-background">
       {/* Top Bar */}
@@ -142,6 +149,7 @@ export const AppLayout = ({ children, sidebar, showWorkspaceSelector = true }: A
           {children}
         </main>
       </div>
+      <AppFooter />
     </div>
   );
 };
