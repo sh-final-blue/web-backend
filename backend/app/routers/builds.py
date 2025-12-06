@@ -452,7 +452,8 @@ async def deploy_to_k8s(request: DeployRequest):
                 json=deploy_data,
             )
             logger.info(f"Received response from builder service. Status: {response.status_code}, Body: {response.text}")
-            response.raise_for_status()
+            if response.status_code >= 400:
+                raise httpx.HTTPError(f"Builder service returned status {response.status_code}: {response.text}")
             deploy_response = response.json()
 
             # Service 생성 대기 (5초) 및 재조회
