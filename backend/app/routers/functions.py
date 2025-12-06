@@ -43,6 +43,17 @@ def build_fallback_host(function: Dict[str, Any], namespace: str = "default") ->
     return f"{slug}.{namespace}.svc.cluster.local"
 
 
+def _to_dynamo_safe(value: Any):
+    """Recursively convert floats to Decimal for DynamoDB compatibility."""
+    if isinstance(value, float):
+        return Decimal(str(value))
+    if isinstance(value, list):
+        return [_to_dynamo_safe(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _to_dynamo_safe(v) for k, v in value.items()}
+    return value
+
+
 @router.post(
     "/workspaces/{workspace_id}/functions",
     response_model=FunctionConfig,
@@ -441,7 +452,8 @@ async def invoke_function(
 
             # DynamoDB에 로그 저장
             try:
-                db_client.create_log(log_entry)
+                safe_log_entry = _to_dynamo_safe(log_entry)
+                db_client.create_log(safe_log_entry)
                 # Invocation counters/averages 업데이트
                 duration_decimal = Decimal(str(duration))
                 new_invocations = prev_invocations + Decimal(1)

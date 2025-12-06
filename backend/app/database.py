@@ -98,14 +98,18 @@ class DynamoDBClient:
         """워크스페이스 집계 메트릭(invocations24h/errorRate) 재계산"""
         functions = self.list_functions(workspace_id)
 
-        total_invocations = 0
-        total_errors = 0
+        total_invocations = Decimal("0")
+        total_errors = Decimal("0")
 
         for fn in functions:
-            total_invocations += int(fn.get("invocations24h", 0) or 0)
-            total_errors += int(fn.get("errors24h", 0) or 0)
+            total_invocations += Decimal(str(fn.get("invocations24h", 0) or 0))
+            total_errors += Decimal(str(fn.get("errors24h", 0) or 0))
 
-        error_rate = (total_errors / total_invocations * 100) if total_invocations > 0 else 0.0
+        error_rate = (
+            (total_errors / total_invocations * Decimal("100"))
+            if total_invocations > 0
+            else Decimal("0")
+        )
 
         # 워크스페이스 메타데이터 업데이트
         self.table.update_item(
