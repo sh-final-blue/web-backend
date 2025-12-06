@@ -61,9 +61,8 @@ class FunctionUpdate(BaseModel):
     environmentVariables: Optional[Dict[str, str]] = None
     code: Optional[str] = None
     invocationUrl: Optional[str] = None
-    status: Optional[str] = Field(
-        None, pattern="^(active|disabled|building|deploying|failed)$"
-    )
+    # 배포 상태 확장 대비: 제한 없는 문자열 허용
+    status: Optional[str] = None
 
 
 class FunctionConfig(BaseModel):
