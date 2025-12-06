@@ -4,6 +4,7 @@ from app.models import FunctionCreate, FunctionUpdate, FunctionConfig
 from app.database import db_client, s3_client
 from typing import List, Any, Dict, Optional
 from datetime import datetime
+from decimal import Decimal
 import base64
 import httpx
 import uuid
@@ -401,9 +402,9 @@ async def invoke_function(
     # 실행 시작 시간
     start_time = time.time()
     timeout_seconds = float(function.get("timeout", 30) or 30)
-    prev_invocations = int(function.get("invocations24h", 0) or 0)
-    prev_errors = int(function.get("errors24h", 0) or 0)
-    prev_avg_duration = float(function.get("avgDuration", 0) or 0)
+    prev_invocations = Decimal(str(function.get("invocations24h", 0) or 0))
+    prev_errors = Decimal(str(function.get("errors24h", 0) or 0))
+    prev_avg_duration = Decimal(str(function.get("avgDuration", 0) or 0))
 
     try:
         # 실제 Function 엔드포인트 호출
@@ -442,12 +443,13 @@ async def invoke_function(
             try:
                 db_client.create_log(log_entry)
                 # Invocation counters/averages 업데이트
-                new_invocations = prev_invocations + 1
-                new_errors = prev_errors + (0 if response.is_success else 1)
+                duration_decimal = Decimal(str(duration))
+                new_invocations = prev_invocations + Decimal(1)
+                new_errors = prev_errors + (Decimal(0) if response.is_success else Decimal(1))
                 new_avg = (
-                    (prev_avg_duration * prev_invocations + duration) / new_invocations
+                    (prev_avg_duration * prev_invocations + duration_decimal) / new_invocations
                     if new_invocations > 0
-                    else duration
+                    else duration_decimal
                 )
                 db_client.update_function(
                     workspace_id,
@@ -492,19 +494,20 @@ async def invoke_function(
 
     except httpx.TimeoutException:
         duration = int((time.time() - start_time) * 1000)
+        duration_decimal = Decimal(str(duration))
         try:
             db_client.update_function(
                 workspace_id,
                 function_id,
                 {
-                    "invocations24h": prev_invocations + 1,
-                    "errors24h": prev_errors + 1,
+                    "invocations24h": prev_invocations + Decimal(1),
+                    "errors24h": prev_errors + Decimal(1),
                     "avgDuration": (
-                        (prev_avg_duration * prev_invocations + duration)
-                        / (prev_invocations + 1)
+                        (prev_avg_duration * prev_invocations + duration_decimal)
+                        / (prev_invocations + Decimal(1))
                     )
-                    if (prev_invocations + 1) > 0
-                    else duration,
+                    if (prev_invocations + Decimal(1)) > 0
+                    else duration_decimal,
                 },
             )
         except Exception as update_err:
@@ -520,19 +523,20 @@ async def invoke_function(
         )
     except httpx.HTTPError as e:
         duration = int((time.time() - start_time) * 1000)
+        duration_decimal = Decimal(str(duration))
         try:
             db_client.update_function(
                 workspace_id,
                 function_id,
                 {
-                    "invocations24h": prev_invocations + 1,
-                    "errors24h": prev_errors + 1,
+                    "invocations24h": prev_invocations + Decimal(1),
+                    "errors24h": prev_errors + Decimal(1),
                     "avgDuration": (
-                        (prev_avg_duration * prev_invocations + duration)
-                        / (prev_invocations + 1)
+                        (prev_avg_duration * prev_invocations + duration_decimal)
+                        / (prev_invocations + Decimal(1))
                     )
-                    if (prev_invocations + 1) > 0
-                    else duration,
+                    if (prev_invocations + Decimal(1)) > 0
+                    else duration_decimal,
                 },
             )
         except Exception as update_err:
@@ -549,19 +553,20 @@ async def invoke_function(
     except Exception as e:
         logger.error(f"Unexpected error invoking function {function_id}: {e}", exc_info=True)
         duration = int((time.time() - start_time) * 1000)
+        duration_decimal = Decimal(str(duration))
         try:
             db_client.update_function(
                 workspace_id,
                 function_id,
                 {
-                    "invocations24h": prev_invocations + 1,
-                    "errors24h": prev_errors + 1,
+                    "invocations24h": prev_invocations + Decimal(1),
+                    "errors24h": prev_errors + Decimal(1),
                     "avgDuration": (
-                        (prev_avg_duration * prev_invocations + duration)
-                        / (prev_invocations + 1)
+                        (prev_avg_duration * prev_invocations + duration_decimal)
+                        / (prev_invocations + Decimal(1))
                     )
-                    if (prev_invocations + 1) > 0
-                    else duration,
+                    if (prev_invocations + Decimal(1)) > 0
+                    else duration_decimal,
                 },
             )
         except Exception as update_err:
