@@ -522,17 +522,23 @@ async def build_and_push(
             try:
                 # 상태 업데이트는 빌더에서 처리
                 dummy_password = "dummy-password"
+                # IRSA 사용을 위해 기본 크리덴셜은 비워 보냄
+                normalized_username = username
+                normalized_password = password
+                if (username == "AWS") and (password is None or password == dummy_password):
+                    normalized_username = ""
+                    normalized_password = ""
 
                 # Builder Service에 build-and-push 요청
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     files = {"file": (file.filename, file_content)}
                     data = {
                         "registry_url": registry_url,
-                        "username": username,
+                        "username": normalized_username,
                         "workspace_id": workspace_id,
                         "tag": tag,
                         "app_name": final_app_name,
-                        "password": password or dummy_password,
+                        "password": normalized_password,
                     }
 
                     response = await client.post(
