@@ -236,6 +236,8 @@ async def update_function(workspace_id: str, function_id: str, updates: Function
         update_data["environmentVariables"] = updates.environmentVariables
     if updates.status is not None:
         update_data["status"] = updates.status
+    if updates.invocationUrl is not None:
+        update_data["invocationUrl"] = updates.invocationUrl
     if updates.code is not None:
         # Base64 검증
         try:
@@ -392,7 +394,7 @@ async def invoke_function(
 
             # DynamoDB에 로그 저장
             try:
-                db_client.create_log(function_id, log_entry)
+                db_client.create_log(log_entry)
             except Exception as e:
                 print(f"Failed to save log: {e}")
 

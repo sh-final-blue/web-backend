@@ -233,6 +233,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (updates.timeout !== undefined) apiUpdates.timeout = updates.timeout;
       if (updates.httpMethods !== undefined) apiUpdates.httpMethods = updates.httpMethods;
       if (updates.environmentVariables !== undefined) apiUpdates.environmentVariables = updates.environmentVariables;
+      if (updates.status !== undefined) apiUpdates.status = updates.status;
+      if (updates.invocationUrl !== undefined) apiUpdates.invocationUrl = updates.invocationUrl;
       if (updates.code !== undefined) apiUpdates.code = encodeBase64(updates.code);
       
       const fn = await api.updateFunction(currentWorkspaceId, id, apiUpdates);
@@ -398,9 +400,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           // Step 5: Function의 invocationUrl 업데이트
           await api.updateFunction(currentWorkspaceId, functionId, {
-            // invocationUrl은 백엔드에서 자동으로 설정되어야 하지만,
-            // 현재는 status만 업데이트
             status: 'active',
+            invocationUrl: endpoint,
           });
 
           // 로컬 state 업데이트

@@ -19,12 +19,18 @@ import { ApiError, type LokiLogsResponse, type PrometheusMetricsResponse } from 
 
 export default function FunctionDetail() {
   const { workspaceId, functionId } = useParams<{ workspaceId: string; functionId: string }>();
-  const { functions, executionLogs, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics, buildAndDeployFunction } = useApp();
+  const { functions, executionLogs, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics, buildAndDeployFunction, setCurrentWorkspaceId } = useApp();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
   const fn = functions.find(f => f.id === functionId);
   const logs = executionLogs.filter(log => log.functionId === functionId);
+
+  useEffect(() => {
+    if (workspaceId) {
+      setCurrentWorkspaceId(workspaceId);
+    }
+  }, [workspaceId, setCurrentWorkspaceId]);
 
   useEffect(() => {
     if (functionId) {
@@ -72,14 +78,29 @@ export default function FunctionDetail() {
       return;
     }
 
+    let body: any;
+    try {
+      body = JSON.parse(requestBody);
+    } catch (error) {
+      toast.error(t('functionDetail.test.invalidJson'));
+      return;
+    }
+
     try {
       setIsInvoking(true);
-      const body = JSON.parse(requestBody);
       const result = await invokeFunction(fn.id, body);
       setLastResult(result);
       toast.success(t('functionDetail.test.success'));
     } catch (error) {
-      toast.error(t('functionDetail.test.invalidJson'));
+      if (error instanceof ApiError) {
+        const errorMessage =
+          (error.data as any)?.error?.message ||
+          error.statusText ||
+          'Failed to invoke function.';
+        toast.error(errorMessage);
+      } else {
+        toast.error('Failed to invoke function.');
+      }
     } finally {
       setIsInvoking(false);
     }

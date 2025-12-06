@@ -94,6 +94,7 @@ export interface UpdateFunctionData {
   environmentVariables?: Record<string, string>;
   code?: string; // Must be Base64 encoded
   status?: string;
+  invocationUrl?: string | null;
 }
 
 export interface LogItem {

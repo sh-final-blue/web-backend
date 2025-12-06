@@ -60,7 +60,10 @@ class FunctionUpdate(BaseModel):
     httpMethods: Optional[List[str]] = None
     environmentVariables: Optional[Dict[str, str]] = None
     code: Optional[str] = None
-    status: Optional[str] = Field(None, pattern="^(active|disabled)$")
+    invocationUrl: Optional[str] = None
+    status: Optional[str] = Field(
+        None, pattern="^(active|disabled|building|deploying|failed)$"
+    )
 
 
 class FunctionConfig(BaseModel):
