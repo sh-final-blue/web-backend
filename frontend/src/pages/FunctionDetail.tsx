@@ -105,7 +105,7 @@ export default function FunctionDetail() {
       setLokiLogs(data);
     } catch (error) {
       console.error('Failed to load Loki logs:', error);
-      toast.error('Failed to load real-time logs');
+      // toast.error('Failed to load real-time logs');
     } finally {
       setIsLoadingLokiLogs(false);
     }
@@ -119,7 +119,7 @@ export default function FunctionDetail() {
       setPrometheusMetrics(data);
     } catch (error) {
       console.error('Failed to load Prometheus metrics:', error);
-      toast.error('Failed to load metrics');
+      // toast.error('Failed to load metrics');
     } finally {
       setIsLoadingMetrics(false);
     }
