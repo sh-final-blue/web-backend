@@ -15,21 +15,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-const DEFAULT_CODE = `from spin_sdk.http import IncomingHandler, Response
+const DEFAULT_CODE = `from spin_sdk.http import IncomingHandler as BaseHandler, Request, Response
 
 
-class SimpleHandler(IncomingHandler):
-    def handle_request(self, request):
+class IncomingHandler(BaseHandler):
+    def handle_request(self, request: Request) -> Response:
         return Response(
             200,
             {"content-type": "text/plain"},
             bytes("Hello from Spin!", "utf-8"),
         )
-
-
-def init_incoming_handler():
-    # spin-python requires a factory returning the handler instance
-    return SimpleHandler()
 `;
 
 export default function NewFunction() {
