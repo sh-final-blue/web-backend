@@ -381,6 +381,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
           // Step 4: Deploy to K8s
           const deployResponse = await api.deployToK8s({
+            app_name: fn.name, // Pass the function name as app_name
             namespace: 'default',
             image_ref: imageUrl,
             function_id: functionId,
