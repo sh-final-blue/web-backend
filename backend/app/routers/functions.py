@@ -8,6 +8,9 @@ import base64
 import httpx
 import uuid
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -324,6 +327,8 @@ async def invoke_function(
     workspace_id: str, function_id: str, request: Request
 ):
     """함수 실행 (HTTP 호출)"""
+    logger.info(f"Invoke request: workspace_id={workspace_id}, function_id={function_id}")
+
     # 함수 존재 확인
     function = db_client.get_function(workspace_id, function_id)
     if not function:
@@ -345,7 +350,8 @@ async def invoke_function(
             detail={
                 "error": {
                     "code": "NOT_DEPLOYED",
-                    "message": f"Function is not deployed yet. Please deploy the function first. {function}",
+                    "message": f"Function {function_id} is not deployed (missing invocationUrl). Please deploy the function first.",
+                    "debug": function
                 }
             },
         )
@@ -396,7 +402,7 @@ async def invoke_function(
             try:
                 db_client.create_log(log_entry)
             except Exception as e:
-                print(f"Failed to save log: {e}")
+                logger.error(f"Failed to save log: {e}")
 
             # 응답 반환
             return {
@@ -435,6 +441,7 @@ async def invoke_function(
             },
         )
     except Exception as e:
+        logger.error(f"Unexpected error invoking function {function_id}: {e}", exc_info=True)
         duration = int((time.time() - start_time) * 1000)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
