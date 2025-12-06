@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Activity, AlertCircle, Clock, Copy, Play, Trash, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
-import type { LokiLogsResponse, PrometheusMetricsResponse } from '@/lib/api';
+import { ApiError, type LokiLogsResponse, type PrometheusMetricsResponse } from '@/lib/api';
 
 export default function FunctionDetail() {
   const { workspaceId, functionId } = useParams<{ workspaceId: string; functionId: string }>();
@@ -43,6 +43,7 @@ export default function FunctionDetail() {
   // Prometheus Metrics State
   const [prometheusMetrics, setPrometheusMetrics] = useState<PrometheusMetricsResponse | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
 
   // Deploy State
   const [isDeploying, setIsDeploying] = useState(false);
@@ -114,12 +115,22 @@ export default function FunctionDetail() {
   const loadPrometheusMetrics = useCallback(async () => {
     if (!functionId) return;
     setIsLoadingMetrics(true);
+    setMetricsError(null);
     try {
       const data = await getPrometheusMetrics(functionId);
       setPrometheusMetrics(data);
     } catch (error) {
       console.error('Failed to load Prometheus metrics:', error);
-      // toast.error('Failed to load metrics');
+      if (error instanceof ApiError) {
+        if (error.status === 503) {
+          setMetricsError('Observability backend is unavailable (Prometheus/Loki unreachable).');
+        } else {
+          setMetricsError('Unable to load metrics right now. Please try again later.');
+        }
+      } else {
+        setMetricsError('Unable to load metrics right now. Please try again later.');
+      }
+      setPrometheusMetrics(null);
     } finally {
       setIsLoadingMetrics(false);
     }
@@ -451,9 +462,13 @@ export default function FunctionDetail() {
                   <div className="text-center py-8 text-muted-foreground">
                     Loading metrics...
                   </div>
+                ) : metricsError ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {metricsError}
+                  </div>
                 ) : !prometheusMetrics ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    No metrics available
+                    No metrics yet. Deploy and invoke the function to generate data.
                   </div>
                 ) : (
                   <div className="space-y-4">
