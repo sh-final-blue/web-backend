@@ -427,14 +427,16 @@ export default function FunctionDetail() {
                       {logs.map((log) => (
                         <TableRow key={log.id}>
                           <TableCell className="text-muted-foreground">
-                            n
+                            {new Date(log.timestamp).toLocaleString()}
                           </TableCell>
                           <TableCell>
                             <Badge variant={log.status === 'success' ? 'default' : 'destructive'}>
                               {log.status}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">nms</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {`${log.duration} ms`}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">{log.statusCode}</TableCell>
                         </TableRow>
                       ))}
