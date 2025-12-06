@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ReactNode, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '@/contexts/AppContext';
 import { Button } from '@/components/ui/button';
@@ -30,8 +30,16 @@ export const AppLayout = ({ children, sidebar, showWorkspaceSelector = true }: A
   const { workspaces, currentWorkspaceId, setCurrentWorkspaceId } = useApp();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
 
   const currentWorkspace = workspaces.find(ws => ws.id === currentWorkspaceId);
+
+  // Keep context in sync when page is loaded via deep link/refresh.
+  useEffect(() => {
+    if (workspaceId && workspaceId !== currentWorkspaceId) {
+      setCurrentWorkspaceId(workspaceId);
+    }
+  }, [workspaceId, currentWorkspaceId, setCurrentWorkspaceId]);
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
