@@ -182,7 +182,12 @@ export default function FunctionDetail() {
       setDeployProgress('');
     } catch (error: any) {
       console.error('Deploy failed:', error);
-      toast.error(`Deploy failed: ${error.message}`);
+      const message = typeof error?.message === 'string' ? error.message : '';
+      if (message.toLowerCase().includes('endpoint')) {
+        toast.info('엔드포인트가 아직 생성 중입니다. 5초 정도 기다린 뒤 새로고침하거나 다시 시도해주세요.');
+      } else {
+        toast.error(`배포 실패: ${message || '알 수 없는 오류가 발생했습니다.'} (kubectl logs -n blue-faas deployment/blue-faas -c blue-faas --tail=200 로 확인 가능)`);
+      }
       setDeployProgress('');
     } finally {
       setIsDeploying(false);

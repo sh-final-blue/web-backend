@@ -391,20 +391,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             use_spot: false,
         });
 
-        const endpoint = deployResponse.endpoint;
-        if (!endpoint) {
-          const provisioningMessage = 'Deployment completed; endpoint is provisioning. Please wait ~5 seconds and retry.';
-          onProgress?.(provisioningMessage);
-          await api.updateFunction(currentWorkspaceId, functionId, {
-            status: 'deploying',
-          });
-          setFunctions(prev => prev.map(f =>
-            f.id === functionId
-              ? { ...f, status: 'deploying' }
-              : f
-          ));
+          const endpoint = deployResponse.endpoint;
+          if (!endpoint) {
+            const provisioningMessage = 'Deployment completed; endpoint is provisioning. Please wait ~5 seconds and retry.';
+            onProgress?.(provisioningMessage);
+            await api.updateFunction(currentWorkspaceId, functionId, {
+              status: 'deploying',
+            });
+            setFunctions(prev => prev.map(f =>
+              f.id === functionId
+                ? { ...f, status: 'deploying' }
+                : f
+            ));
           return '';
-        }
+          }
 
           onProgress?.(`Deployed successfully: ${endpoint}`);
 
