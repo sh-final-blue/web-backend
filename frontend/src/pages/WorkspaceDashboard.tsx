@@ -64,25 +64,25 @@ export default function WorkspaceDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricsCard
             title={t('workspace.metrics.totalFunctions')}
-            value="n"
+            value={workspaceFunctions.length.toString()}
             icon={Code2}
             description={t('workspace.metrics.activeAndDisabled')}
           />
           <MetricsCard
             title={t('workspace.metrics.invocations')}
-            value="n"
+            value={totalInvocations.toLocaleString()}
             icon={Activity}
             description={t('workspace.metrics.last24h')}
           />
           <MetricsCard
             title={t('workspace.metrics.errorRate')}
-            value="n%"
+            value={`${errorRate}%`}
             icon={AlertCircle}
             description={t('workspace.metrics.last24h')}
           />
           <MetricsCard
             title={t('workspace.metrics.avgDuration')}
-            value="nms"
+            value={`${avgDuration} ms`}
             icon={Clock}
             description={t('workspace.metrics.acrossAll')}
           />
@@ -119,7 +119,7 @@ export default function WorkspaceDashboard() {
                         onClick={() => navigate(`/workspaces/${workspaceId}/functions/${log.functionId}`)}
                       >
                         <TableCell className="text-muted-foreground">
-                          n
+                          {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true })}
                         </TableCell>
                         <TableCell className="font-medium">{fn?.name || t('common.unknown')}</TableCell>
                         <TableCell>
@@ -127,7 +127,9 @@ export default function WorkspaceDashboard() {
                             {log.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">nms</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {`${log.duration} ms`}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
