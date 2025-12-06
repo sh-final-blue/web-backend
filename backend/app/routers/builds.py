@@ -453,6 +453,24 @@ async def deploy_to_k8s(request: DeployRequest):
             response.raise_for_status()
             deploy_response = response.json()
 
+            # Service 생성 대기 (5초) 및 재조회
+            # SpinApp 생성 직후에는 Service가 생성되지 않아 endpoint가 null일 수 있음
+            if not deploy_response.get("endpoint"):
+                logger.info("Endpoint not ready, waiting 5 seconds for Service creation...")
+                await asyncio.sleep(5)
+                
+                # 첫 번째 응답에서 받은 app_name을 사용하여 재조회 (동일 앱 대상)
+                generated_app_name = deploy_response.get("app_name")
+                if generated_app_name:
+                    deploy_data["app_name"] = generated_app_name
+                    
+                    response = await client.post(
+                        f"{settings.builder_service_url}/api/v1/deploy",
+                        json=deploy_data,
+                    )
+                    response.raise_for_status()
+                    deploy_response = response.json()
+
             return DeployResponse(
                 app_name=deploy_response.get("app_name"),
                 namespace=deploy_response.get("namespace"),
