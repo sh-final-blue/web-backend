@@ -22,19 +22,27 @@ export default function Landing() {
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState('');
 
-  const handleCreateWorkspace = () => {
+  const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) {
       toast.error(t('landing.createDialog.nameRequired'));
       return;
     }
 
-    const workspace = createWorkspace(newWorkspaceName, newWorkspaceDescription);
-    setCurrentWorkspaceId(workspace.id);
-    setIsCreateDialogOpen(false);
-    setNewWorkspaceName('');
-    setNewWorkspaceDescription('');
-    toast.success(t('landing.createDialog.success'));
-    navigate(`/workspaces/${workspace.id}`);
+    try {
+      const workspace = await createWorkspace(newWorkspaceName, newWorkspaceDescription);
+      
+      setCurrentWorkspaceId(workspace.id);
+      setIsCreateDialogOpen(false);
+      setNewWorkspaceName('');
+      setNewWorkspaceDescription('');
+      
+      toast.success(t('landing.createDialog.success'));
+      
+      navigate(`/workspaces/${workspace.id}`);
+    } catch (error) {
+      console.error("Failed to create workspace:", error);
+      toast.error(t('landing.createDialog.error', 'Failed to create workspace. Please try again.'));
+    }
   };
 
   return (

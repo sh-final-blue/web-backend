@@ -78,11 +78,16 @@ export default function FunctionDetail() {
     }
   };
 
-  const handleDeleteFunction = () => {
+  const handleDeleteFunction = async () => {
     if (confirm(t('functionDetail.deleteConfirm', { name: fn.name }))) {
-      deleteFunction(fn.id);
-      toast.success(t('functionDetail.deleteSuccess'));
-      navigate(`/workspaces/${workspaceId}/functions`);
+      try {
+        await deleteFunction(fn.id);
+        toast.success(t('functionDetail.deleteSuccess'));
+        navigate(`/workspaces/${workspaceId}/functions`);
+      } catch (error) {
+        console.error("Failed to delete function:", error);
+        toast.error(t('functionDetail.deleteError', 'Failed to delete the function.'));
+      }
     }
   };
 

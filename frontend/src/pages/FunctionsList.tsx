@@ -33,18 +33,28 @@ export default function FunctionsList() {
     fn.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleDeleteFunction = (id: string, name: string) => {
+  const handleDeleteFunction = async (id: string, name: string) => {
     if (confirm(t('functions.actions.deleteConfirm', { name }))) {
-      deleteFunction(id);
-      toast.success(t('functions.actions.deleteSuccess'));
+      try {
+        await deleteFunction(id);
+        toast.success(t('functions.actions.deleteSuccess'));
+      } catch (error) {
+        console.error("Failed to delete function:", error);
+        toast.error(t('functions.actions.deleteError', 'Failed to delete function.'));
+      }
     }
   };
 
-  const handleToggleStatus = (id: string, currentStatus: string) => {
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
-    updateFunction(id, { status: newStatus });
     const statusText = newStatus === 'active' ? t('functions.actions.enabled') : t('functions.actions.disabled');
-    toast.success(t('functions.actions.statusSuccess', { status: statusText }));
+    try {
+      await updateFunction(id, { status: newStatus });
+      toast.success(t('functions.actions.statusSuccess', { status: statusText }));
+    } catch (error) {
+      console.error("Failed to update function status:", error);
+      toast.error(t('functions.actions.statusError', 'Failed to update function status.'));
+    }
   };
 
   return (

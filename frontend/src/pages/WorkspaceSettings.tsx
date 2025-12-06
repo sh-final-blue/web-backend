@@ -32,21 +32,30 @@ export default function WorkspaceSettings() {
     );
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       toast.error(t('workspaceSettings.details.nameRequired'));
       return;
     }
-
-    updateWorkspace(workspace.id, { name, description });
-    toast.success(t('workspaceSettings.details.success'));
+    try {
+      await updateWorkspace(workspace.id, { name, description });
+      toast.success(t('workspaceSettings.details.success'));
+    } catch (error) {
+      console.error("Failed to save workspace settings:", error);
+      toast.error(t('workspaceSettings.details.error', 'Failed to save changes.'));
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (confirm(t('workspaceSettings.danger.deleteConfirm', { name: workspace.name }))) {
-      deleteWorkspace(workspace.id);
-      toast.success(t('workspaceSettings.danger.deleteSuccess'));
-      navigate('/');
+      try {
+        await deleteWorkspace(workspace.id);
+        toast.success(t('workspaceSettings.danger.deleteSuccess'));
+        navigate('/');
+      } catch (error) {
+        console.error("Failed to delete workspace:", error);
+        toast.error(t('workspaceSettings.danger.deleteError', 'Failed to delete workspace.'));
+      }
     }
   };
 
