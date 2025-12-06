@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Activity, AlertCircle, Clock, Copy, Play, Trash, RefreshCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { toKSTDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ApiError, type LokiLogsResponse, type PrometheusMetricsResponse } from '@/lib/api';
 
@@ -40,6 +41,7 @@ export default function FunctionDetail() {
 
   const [requestBody, setRequestBody] = useState('{\n  "key": "value"\n}');
   const [isInvoking, setIsInvoking] = useState(false);
+  const [isTestDisabled, setIsTestDisabled] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
 
   // Loki Logs State
@@ -169,6 +171,7 @@ export default function FunctionDetail() {
     if (!functionId || !fn) return;
 
     setIsDeploying(true);
+    setIsTestDisabled(true); // 테스트&실행 버튼 비활성화
     setDeployProgress('Starting build and deploy...');
 
     try {
@@ -199,6 +202,11 @@ export default function FunctionDetail() {
       setDeployProgress('');
     } finally {
       setIsDeploying(false);
+      // 배포 완료 후 5초간 테스트&실행 버튼 비활성화 유지 후 활성화 및 토스트 표시
+      setTimeout(() => {
+        setIsTestDisabled(false);
+        toast.success('배포가 완료되었습니다');
+      }, 5000);
     }
   };
 
@@ -363,7 +371,7 @@ export default function FunctionDetail() {
                   />
                   <Button
                     onClick={handleInvokeFunction}
-                    disabled={isInvoking || fn.status === 'disabled'}
+                    disabled={isInvoking || isDeploying || isTestDisabled || fn.status === 'disabled'}
                     className="w-full"
                   >
                     <Play className="h-4 w-4 mr-2" />
@@ -427,7 +435,7 @@ export default function FunctionDetail() {
                       {logs.map((log) => (
                         <TableRow key={log.id}>
                           <TableCell className="text-muted-foreground">
-                            {new Date(log.timestamp).toLocaleString()}
+                            {toKSTDate(log.timestamp).toLocaleString()}
                           </TableCell>
                           <TableCell>
                             <Badge variant={log.status === 'success' ? 'default' : 'destructive'}>
@@ -478,7 +486,7 @@ export default function FunctionDetail() {
                     {lokiLogs.logs.map((log, idx) => (
                       <div key={idx} className="p-3 bg-muted rounded-md font-mono text-xs">
                         <div className="text-muted-foreground mb-1">
-                          {new Date(parseInt(log.timestamp) / 1000000).toLocaleString()}
+                          {toKSTDate(parseInt(log.timestamp) / 1000000).toLocaleString()}
                         </div>
                         <div>{log.line}</div>
                       </div>
