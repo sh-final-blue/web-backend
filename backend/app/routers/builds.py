@@ -429,8 +429,11 @@ async def deploy_to_k8s(request: DeployRequest):
     try:
         # Builder Service의 /api/v1/deploy 호출
         async with httpx.AsyncClient(timeout=60.0) as client:
+            # app_name을 소문자로 변환 (Spin TOML 규칙 준수)
+            app_name_sanitized = request.app_name.lower() if request.app_name else None
+
             deploy_data = {
-                "app_name": request.app_name,
+                "app_name": app_name_sanitized,
                 "namespace": request.namespace,
                 "service_account": request.service_account,
                 "cpu_limit": request.cpu_limit,
