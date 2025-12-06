@@ -379,22 +379,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             throw new Error('Build completed but no image URL returned');
           }
 
-          onProgress?.('Build completed! Deploying to Kubernetes...');
+        onProgress?.('Build completed! Deploying to Kubernetes...');
 
-          // Step 4: Deploy to K8s
-          const deployResponse = await api.deployToK8s({
-            app_name: fn.name, // Pass the function name as app_name
+        // Step 4: Deploy to K8s
+        const deployResponse = await api.deployToK8s({
+          app_name: fn.name, // Pass the function name as app_name
             namespace: 'default',
             image_ref: imageUrl,
             function_id: functionId,
             enable_autoscaling: true,
             use_spot: false,
-          });
+        });
 
-          const endpoint = deployResponse.endpoint;
-          if (!endpoint) {
-            throw new Error('Deploy succeeded but no endpoint returned');
-          }
+        const endpoint = deployResponse.endpoint;
+        if (!endpoint) {
+          const provisioningMessage = 'Deployment completed; endpoint is provisioning. Please wait ~5 seconds and retry.';
+          onProgress?.(provisioningMessage);
+          await api.updateFunction(currentWorkspaceId, functionId, {
+            status: 'deploying',
+          });
+          setFunctions(prev => prev.map(f =>
+            f.id === functionId
+              ? { ...f, status: 'deploying' }
+              : f
+          ));
+          return '';
+        }
 
           onProgress?.(`Deployed successfully: ${endpoint}`);
 

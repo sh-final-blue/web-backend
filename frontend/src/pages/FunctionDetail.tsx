@@ -172,6 +172,12 @@ export default function FunctionDetail() {
         }
       );
 
+      if (!endpoint) {
+        toast.info('배포는 완료되었고 엔드포인트가 발급 중입니다. 약 5초 뒤 새로고침하거나 다시 시도해주세요.');
+        setDeployProgress('');
+        return;
+      }
+
       toast.success(`Deployed successfully! Endpoint: ${endpoint}`);
       setDeployProgress('');
     } catch (error: any) {
