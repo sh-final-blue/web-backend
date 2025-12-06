@@ -535,9 +535,6 @@ async def build_and_push(
                     normalized_password = ""
 
                 # Builder Service에 build-and-push 요청
-                target_url = f"{settings.builder_service_url}/api/v1/build-and-push"
-                logger.info(f"Sending build request to: {target_url}")
-                
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     files = {"file": (file.filename, file_content)}
                     data = {
@@ -550,18 +547,10 @@ async def build_and_push(
                     }
 
                     response = await client.post(
-                        target_url,
+                        f"{settings.builder_service_url}/api/v1/build-and-push",
                         files=files,
                         data=data,
                     )
-                    
-                    logger.info(f"Builder response status: {response.status_code}")
-                    logger.info(f"Builder response headers: {response.headers}")
-                    try:
-                        logger.info(f"Builder response body: {response.text}")
-                    except:
-                        pass
-                        
                     response.raise_for_status()
                     build_push_response = response.json()
                     builder_task_id = build_push_response.get("task_id")
@@ -582,24 +571,16 @@ async def build_and_push(
                         status_data = status_response.json()
 
                         status = status_data.get("status")
-                        # logger.info(f"Build-and-push task {task_id} status: {status}") # Too noisy
+                        logger.info(f"Build-and-push task {task_id} status: {status}")
 
                         if status in ["completed", "done"]:
                             result = status_data.get("result", {})
-                            logger.info(f"Task completed. Raw result: {result}")
-                            
                             wasm_path = result.get("wasm_path")
                             
                             # 이미지 URL이 없으면 백엔드에서 조합해서 생성
                             image_url = result.get("image_url") or result.get("image_uri")
-                            
-                            if not image_url:
-                                logger.warning(f"Image URL missing. Attempting fallback with: registry_url={registry_url}, effective_tag={effective_tag}")
-                                if registry_url and effective_tag:
-                                    image_url = f"{registry_url}:{effective_tag}"
-                                    logger.info(f"Fallback image_url generated: {image_url}")
-                                else:
-                                    logger.error("Fallback failed. Missing registry_url or effective_tag.")
+                            if not image_url and registry_url and effective_tag:
+                                image_url = f"{registry_url}:{effective_tag}"
 
                             # 상태 업데이트
                             db_client.update_build_task_status(
