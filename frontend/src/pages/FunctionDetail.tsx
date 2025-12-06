@@ -19,7 +19,7 @@ import { ApiError, type LokiLogsResponse, type PrometheusMetricsResponse } from 
 
 export default function FunctionDetail() {
   const { workspaceId, functionId } = useParams<{ workspaceId: string; functionId: string }>();
-  const { functions, executionLogs, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics, buildAndDeployFunction, setCurrentWorkspaceId } = useApp();
+  const { functions, executionLogs, getFunctionLogs, invokeFunction, deleteFunction, getLokiLogs, getPrometheusMetrics, buildAndDeployFunction, setCurrentWorkspaceId, loadFunctions } = useApp();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -54,16 +54,24 @@ export default function FunctionDetail() {
   // Deploy State
   const [isDeploying, setIsDeploying] = useState(false);
   const [deployProgress, setDeployProgress] = useState<string>('');
+  const [isFunctionLoading, setIsFunctionLoading] = useState(false);
 
-  if (!fn) {
-    return (
-      <AppLayout>
-        <div className="p-8">
-          <h1 className="text-2xl font-bold">{t('functionDetail.notFound')}</h1>
-        </div>
-      </AppLayout>
-    );
-  }
+  useEffect(() => {
+    // Safeguard: if we refreshed on detail page and functions list is empty, load it.
+    const shouldLoad = workspaceId && !fn && !isFunctionLoading;
+    if (!shouldLoad) return;
+
+    const load = async () => {
+      try {
+        setIsFunctionLoading(true);
+        await loadFunctions(workspaceId);
+      } finally {
+        setIsFunctionLoading(false);
+      }
+    };
+
+    load();
+  }, [workspaceId, fn, isFunctionLoading, loadFunctions]);
 
   const endpointUrl = fn.invocationUrl || `${import.meta.env.VITE_API_URL || window.location.origin}/api/workspaces/${workspaceId}/functions/${functionId}/invoke`;
 
@@ -209,6 +217,18 @@ export default function FunctionDetail() {
       handleDeploy();
     }
   }, [fn?.status]);
+
+  if (!fn) {
+    return (
+      <AppLayout>
+        <div className="p-8">
+          <h1 className="text-2xl font-bold">
+            {isFunctionLoading ? t('common.loading') : t('functionDetail.notFound')}
+          </h1>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout sidebar={<WorkspaceSidebar />}>
