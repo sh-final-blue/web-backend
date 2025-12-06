@@ -485,7 +485,10 @@ async def deploy_to_k8s(request: DeployRequest):
             )
 
     except httpx.HTTPError as e:
-        logger.error(f"Deploy HTTP error: {str(e)}")
+        error_message = f"Deploy HTTP error: {str(e)}"
+        if e.response:
+            error_message += f" | Response: {e.response.text}"
+        logger.error(error_message)
         raise HTTPException(status_code=500, detail=f"HTTP error: {str(e)}")
     except Exception as e:
         logger.error(f"Deploy endpoint error: {str(e)}")
