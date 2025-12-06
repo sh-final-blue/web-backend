@@ -326,6 +326,7 @@ async def invoke_function(
     """함수 실행 (HTTP 호출)"""
     # 함수 존재 확인
     function = db_client.get_function(workspace_id, function_id)
+    print("[FUNCTION]: ", function)
     if not function:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -337,10 +338,9 @@ async def invoke_function(
             },
         )
 
-    print("[FUNCTION]: ", function)
-    print("[FUNCTION]: ", function.get("invocationUrl"))
     # invocationUrl 확인
     invocation_url = function.get("invocationUrl")
+    print("[FUNCTION]: ", invocation_url)
     if not invocation_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
