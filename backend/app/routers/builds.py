@@ -442,12 +442,15 @@ async def deploy_to_k8s(request: DeployRequest):
                 "memory_request": request.memory_request,
                 "image_ref": request.image_ref,
                 "enable_autoscaling": request.enable_autoscaling,
-                "replicas": request.replicas,
                 "use_spot": request.use_spot,
                 "custom_tolerations": request.custom_tolerations,
                 "custom_affinity": request.custom_affinity,
                 "function_id": request.function_id,  # 로그 구분용 Function ID
             }
+
+            # 오토스케일링이 비활성화된 경우에만 replicas를 설정
+            if not request.enable_autoscaling:
+                deploy_data["replicas"] = request.replicas
 
             logger.info(f"Sending deploy request to builder service with data: {deploy_data}")
             response = await client.post(
