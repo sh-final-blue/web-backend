@@ -58,7 +58,7 @@ export default function FunctionDetail() {
     );
   }
 
-  const endpointUrl = `https://api.example.com/w/${workspaceId}/f/${functionId}`;
+  const endpointUrl = fn.invocationUrl || `${import.meta.env.VITE_API_URL || window.location.origin}/api/workspaces/${workspaceId}/functions/${functionId}/invoke`;
 
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(endpointUrl);
@@ -103,7 +103,6 @@ export default function FunctionDetail() {
     try {
       const data = await getLokiLogs(functionId, 100);
       setLokiLogs(data);
-      toast.success('Real-time logs loaded');
     } catch (error) {
       console.error('Failed to load Loki logs:', error);
       toast.error('Failed to load real-time logs');
@@ -118,7 +117,6 @@ export default function FunctionDetail() {
     try {
       const data = await getPrometheusMetrics(functionId);
       setPrometheusMetrics(data);
-      toast.success('Metrics loaded');
     } catch (error) {
       console.error('Failed to load Prometheus metrics:', error);
       toast.error('Failed to load metrics');
