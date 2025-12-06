@@ -391,33 +391,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             use_spot: false,
         });
 
-          const endpoint = deployResponse.endpoint;
-          if (!endpoint) {
-            const provisioningMessage = 'Deployment completed; endpoint is provisioning. Please wait ~5 seconds and retry.';
-            onProgress?.(provisioningMessage);
-            await api.updateFunction(currentWorkspaceId, functionId, {
-              status: 'deploying',
-            });
-            setFunctions(prev => prev.map(f =>
-              f.id === functionId
-                ? { ...f, status: 'deploying' }
-                : f
-            ));
+        const endpoint = deployResponse.endpoint;
+        if (!endpoint) {
+          const provisioningMessage = 'Deployment completed; endpoint is provisioning. Please wait ~5 seconds and retry.';
+          onProgress?.(provisioningMessage);
+          setFunctions(prev => prev.map(f =>
+            f.id === functionId
+              ? { ...f, status: 'deploying' }
+              : f
+          ));
           return '';
-          }
+        }
 
-          onProgress?.(`Deployed successfully: ${endpoint}`);
+        onProgress?.(`Deployed successfully: ${endpoint}`);
 
-          // Step 5: Function의 invocationUrl 업데이트
+        // Step 5: Function의 invocationUrl 업데이트
+        try {
           await api.updateFunction(currentWorkspaceId, functionId, {
             status: 'active',
             invocationUrl: endpoint,
           });
+        } catch (updateError) {
+          console.warn('Failed to persist invocationUrl to backend (non-blocking):', updateError);
+        }
 
-          // 로컬 state 업데이트
-          setFunctions(prev => prev.map(f =>
-            f.id === functionId
-              ? { ...f, status: 'active', invocationUrl: endpoint }
+        // 로컬 state 업데이트
+        setFunctions(prev => prev.map(f =>
+          f.id === functionId
+            ? { ...f, status: 'active', invocationUrl: endpoint }
               : f
           ));
 
@@ -436,18 +437,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       console.error('Build and deploy failed:', error);
 
       // 실패 시 status를 'failed'로 업데이트
-      if (currentWorkspaceId) {
-        try {
-          await api.updateFunction(currentWorkspaceId, functionId, {
-            status: 'failed',
-          });
-          setFunctions(prev => prev.map(f =>
-            f.id === functionId ? { ...f, status: 'failed' } : f
-          ));
-        } catch (updateError) {
-          console.error('Failed to update function status:', updateError);
-        }
-      }
+      setFunctions(prev => prev.map(f =>
+        f.id === functionId ? { ...f, status: 'failed' } : f
+      ));
 
       throw error;
     }
