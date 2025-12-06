@@ -132,10 +132,10 @@ export default function FunctionsList() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      n
+                      {fn.invocations24h?.toLocaleString() ?? '0'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      n
+                      {fn.lastModified ? new Date(fn.lastModified).toLocaleString() : '-'}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
