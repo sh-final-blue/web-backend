@@ -39,8 +39,7 @@ async def _real_build_process(
 ):
     """실제 Builder Service 호출 및 폴링"""
     try:
-        # 상태를 running으로 변경
-        db_client.update_build_task_status(workspace_id, task_id, "running")
+        # DynamoDB 상태 갱신은 빌더 서비스 측에서 처리 (중복 업데이트 방지)
 
         # 1. Builder Service의 /api/v1/build 호출
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -82,42 +81,27 @@ async def _real_build_process(
                     result = status_data.get("result", {})
                     wasm_path = result.get("wasm_path")
 
-                    db_client.update_build_task_status(
-                        workspace_id, task_id, "completed", wasm_path=wasm_path
-                    )
                     logger.info(f"Build task {task_id} completed: {wasm_path}")
                     break
 
                 elif status == "failed":
                     error_msg = status_data.get("error", "Build failed")
-                    db_client.update_build_task_status(
-                        workspace_id, task_id, "failed", error_message=error_msg
-                    )
                     logger.error(f"Build task {task_id} failed: {error_msg}")
                     break
 
                 else:
-                    # running 또는 pending 상태 - DynamoDB 업데이트
-                    db_client.update_build_task_status(workspace_id, task_id, status)
+                    # running 또는 pending 상태는 로그만 남김
+                    logger.debug(f"Build task {task_id} status (no-op update): {status}")
 
         else:
             # 타임아웃 (10분 초과)
             error_msg = "Build timeout (10 minutes exceeded)"
-            db_client.update_build_task_status(
-                workspace_id, task_id, "failed", error_message=error_msg
-            )
             logger.error(f"Build task {task_id} timed out")
 
     except httpx.HTTPError as e:
         logger.error(f"Build task {task_id} HTTP error: {str(e)}")
-        db_client.update_build_task_status(
-            workspace_id, task_id, "failed", error_message=f"HTTP error: {str(e)}"
-        )
     except Exception as e:
         logger.error(f"Build task {task_id} failed: {str(e)}")
-        db_client.update_build_task_status(
-            workspace_id, task_id, "failed", error_message=str(e)
-        )
 
 
 async def _real_push_process(
@@ -132,7 +116,7 @@ async def _real_push_process(
     """실제 Builder Service의 Push API 호출 및 폴링"""
     dummy_password = "dummy-password"
     try:
-        db_client.update_build_task_status(workspace_id, task_id, "running")
+        # DynamoDB 상태 갱신은 빌더 서비스 측에서 처리 (중복 업데이트 방지)
 
         # 1. Builder Service의 /api/v1/push 호출
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -175,41 +159,26 @@ async def _real_push_process(
                     result = status_data.get("result", {})
                     image_url = result.get("image_url") or result.get("image_uri")
 
-                    db_client.update_build_task_status(
-                        workspace_id, task_id, "completed", image_url=image_url
-                    )
                     logger.info(f"Push task {task_id} completed: {image_url}")
                     break
 
                 elif status == "failed":
                     error_msg = status_data.get("error", "Push failed")
-                    db_client.update_build_task_status(
-                        workspace_id, task_id, "failed", error_message=error_msg
-                    )
                     logger.error(f"Push task {task_id} failed: {error_msg}")
                     break
 
                 else:
-                    db_client.update_build_task_status(workspace_id, task_id, status)
+                    logger.debug(f"Push task {task_id} status (no-op update): {status}")
 
         else:
             # 타임아웃
             error_msg = "Push timeout (10 minutes exceeded)"
-            db_client.update_build_task_status(
-                workspace_id, task_id, "failed", error_message=error_msg
-            )
             logger.error(f"Push task {task_id} timed out")
 
     except httpx.HTTPError as e:
         logger.error(f"Push task {task_id} HTTP error: {str(e)}")
-        db_client.update_build_task_status(
-            workspace_id, task_id, "failed", error_message=f"HTTP error: {str(e)}"
-        )
     except Exception as e:
         logger.error(f"Push task {task_id} failed: {str(e)}")
-        db_client.update_build_task_status(
-            workspace_id, task_id, "failed", error_message=str(e)
-        )
 
 
 # ===== POST /api/v1/build =====
@@ -253,7 +222,7 @@ async def build(
         )
 
         # Task에 source_path 업데이트
-        db_client.update_build_task_status(workspace_id, task_id, "pending")
+        # 상태 업데이트는 빌더에서 처리
 
         # 백그라운드에서 빌드 프로세스 실행
         background_tasks.add_task(
@@ -374,7 +343,7 @@ async def push_to_ecr(background_tasks: BackgroundTasks, request: PushRequest):
         task = db_client.create_build_task(workspace_id=workspace_id, app_name=None)
         task_id = task["task_id"]
 
-        # 백그라운드에서 푸시 프로세스 실행
+        # 백그라운드에서 푸시 프로세스 실행 (상태 업데이트는 빌더에서 처리)
         background_tasks.add_task(
             _real_push_process,
             workspace_id,
@@ -551,7 +520,7 @@ async def build_and_push(
         async def _build_and_push_wrapper():
             """Build and Push를 순차적으로 실행하는 래퍼"""
             try:
-                db_client.update_build_task_status(workspace_id, task_id, "running")
+                # 상태 업데이트는 빌더에서 처리
                 dummy_password = "dummy-password"
 
                 # Builder Service에 build-and-push 요청
@@ -598,41 +567,25 @@ async def build_and_push(
                             wasm_path = result.get("wasm_path")
                             image_url = result.get("image_url") or result.get("image_uri")
 
-                            db_client.update_build_task_status(
-                                workspace_id, task_id, "completed",
-                                wasm_path=wasm_path, image_url=image_url
-                            )
                             logger.info(f"Build-and-push task {task_id} completed")
                             break
 
                         elif status == "failed":
                             error_msg = status_data.get("error", "Build-and-push failed")
-                            db_client.update_build_task_status(
-                                workspace_id, task_id, "failed", error_message=error_msg
-                            )
                             logger.error(f"Build-and-push task {task_id} failed: {error_msg}")
                             break
 
                         else:
-                            db_client.update_build_task_status(workspace_id, task_id, status)
+                            logger.debug(f"Build-and-push task {task_id} status (no-op update): {status}")
 
                 else:
                     error_msg = "Build-and-push timeout (10 minutes exceeded)"
-                    db_client.update_build_task_status(
-                        workspace_id, task_id, "failed", error_message=error_msg
-                    )
                     logger.error(f"Build-and-push task {task_id} timed out")
 
             except httpx.HTTPError as e:
                 logger.error(f"Build-and-push task {task_id} HTTP error: {str(e)}")
-                db_client.update_build_task_status(
-                    workspace_id, task_id, "failed", error_message=f"HTTP error: {str(e)}"
-                )
             except Exception as e:
                 logger.error(f"Build-and-push task {task_id} failed: {str(e)}")
-                db_client.update_build_task_status(
-                    workspace_id, task_id, "failed", error_message=str(e)
-                )
 
         background_tasks.add_task(_build_and_push_wrapper)
 
