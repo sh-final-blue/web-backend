@@ -94,6 +94,29 @@ class DynamoDBClient:
         # 워크스페이스 메타데이터 삭제
         self.table.delete_item(Key={"PK": f"WS#{workspace_id}", "SK": "METADATA"})
 
+    def refresh_workspace_metrics(self, workspace_id: str):
+        """워크스페이스 집계 메트릭(invocations24h/errorRate) 재계산"""
+        functions = self.list_functions(workspace_id)
+
+        total_invocations = 0
+        total_errors = 0
+
+        for fn in functions:
+            total_invocations += int(fn.get("invocations24h", 0) or 0)
+            total_errors += int(fn.get("errors24h", 0) or 0)
+
+        error_rate = (total_errors / total_invocations * 100) if total_invocations > 0 else 0.0
+
+        # 워크스페이스 메타데이터 업데이트
+        self.table.update_item(
+            Key={"PK": f"WS#{workspace_id}", "SK": "METADATA"},
+            UpdateExpression="SET invocations24h = :inv, errorRate = :err",
+            ExpressionAttributeValues={
+                ":inv": total_invocations,
+                ":err": error_rate,
+            },
+        )
+
     # ===== Function 메서드 =====
     def create_function(
         self, workspace_id: str, function_data: Dict[str, Any]

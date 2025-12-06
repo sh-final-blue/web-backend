@@ -460,6 +460,8 @@ async def invoke_function(
                         "avgDuration": new_avg,
                     },
                 )
+                # 워크스페이스 집계도 업데이트
+                db_client.refresh_workspace_metrics(workspace_id)
             except Exception as e:
                 logger.error(f"Failed to save log: {e}")
 
@@ -510,6 +512,7 @@ async def invoke_function(
                     else duration_decimal,
                 },
             )
+            db_client.refresh_workspace_metrics(workspace_id)
         except Exception as update_err:
             logger.warning("Failed to update metrics after timeout: %s", update_err)
         raise HTTPException(
@@ -539,6 +542,7 @@ async def invoke_function(
                     else duration_decimal,
                 },
             )
+            db_client.refresh_workspace_metrics(workspace_id)
         except Exception as update_err:
             logger.warning("Failed to update metrics after http error: %s", update_err)
         raise HTTPException(
@@ -569,6 +573,7 @@ async def invoke_function(
                     else duration_decimal,
                 },
             )
+            db_client.refresh_workspace_metrics(workspace_id)
         except Exception as update_err:
             logger.warning("Failed to update metrics after unexpected error: %s", update_err)
         raise HTTPException(
