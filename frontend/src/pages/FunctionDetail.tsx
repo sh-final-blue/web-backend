@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Activity, AlertCircle, Clock, Copy, Play, Trash, RefreshCw, Cpu } from 'lucide-react';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { formatDistanceToNow } from 'date-fns';
 import { toKSTDate } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -61,6 +62,24 @@ export default function FunctionDetail() {
   const avgCpu = cpuSeries.length > 0 ? cpuSeries.reduce((sum, point) => sum + point.value, 0) / cpuSeries.length : null;
   const peakCpu = cpuSeries.length > 0 ? Math.max(...cpuSeries.map(point => point.value)) : null;
   const recentCpuSeries = cpuSeries.slice(-20); // last 20 points for table display
+  const chartData = cpuSeries.map(point => ({
+    timestamp: point.timestamp,
+    timeLabel: new Date(point.timestamp * 1000).toLocaleTimeString(),
+    value: point.value,
+  }));
+
+  const renderCpuTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const item = payload[0];
+      return (
+        <div className="rounded-md border bg-background px-3 py-2 shadow-sm text-xs">
+          <div className="font-medium">{new Date(item.payload.timestamp * 1000).toLocaleString()}</div>
+          <div className="text-muted-foreground">{item.value?.toFixed(4)} cores</div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   // Deploy State
   const [isDeploying, setIsDeploying] = useState(false);
@@ -573,28 +592,57 @@ export default function FunctionDetail() {
                           No CPU samples yet. Invoke the function to generate metrics.
                         </div>
                       ) : (
-                        <div className="rounded-md border">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Timestamp</TableHead>
-                                <TableHead>CPU (cores)</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {recentCpuSeries.map((point, idx) => (
-                                <TableRow key={`${point.timestamp}-${idx}`}>
-                                  <TableCell className="text-muted-foreground">
-                                    {new Date(point.timestamp * 1000).toLocaleString()}
-                                  </TableCell>
-                                  <TableCell className="font-mono">
-                                    {point.value.toFixed(4)}
-                                  </TableCell>
+                        <>
+                          <div className="rounded-md border bg-background p-4">
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData}>
+                                  <defs>
+                                    <linearGradient id="cpuFill" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.7} />
+                                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                    </linearGradient>
+                                  </defs>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                  <XAxis dataKey="timeLabel" tick={{ fontSize: 12 }} />
+                                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => v.toFixed(3)} />
+                                  <Tooltip content={renderCpuTooltip} />
+                                  <Area
+                                    type="monotone"
+                                    dataKey="value"
+                                    stroke="#059669"
+                                    fillOpacity={1}
+                                    fill="url(#cpuFill)"
+                                    strokeWidth={2}
+                                  />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+
+                          <div className="rounded-md border">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Timestamp</TableHead>
+                                  <TableHead>CPU (cores)</TableHead>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
+                              </TableHeader>
+                              <TableBody>
+                                {recentCpuSeries.map((point, idx) => (
+                                  <TableRow key={`${point.timestamp}-${idx}`}>
+                                    <TableCell className="text-muted-foreground">
+                                      {new Date(point.timestamp * 1000).toLocaleString()}
+                                    </TableCell>
+                                    <TableCell className="font-mono">
+                                      {point.value.toFixed(4)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>
