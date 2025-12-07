@@ -7,6 +7,7 @@ from decimal import Decimal
 import base64
 import shortuuid
 from datetime import datetime
+from app.utils.timezone import now_kst_iso, now_kst, to_kst
 
 
 class DynamoDBClient:
@@ -23,7 +24,7 @@ class DynamoDBClient:
     def create_workspace(self, name: str, description: Optional[str] = None) -> Dict[str, Any]:
         """워크스페이스 생성"""
         workspace_id = f"ws-{shortuuid.uuid()[:8]}"
-        now = datetime.utcnow().isoformat()
+        now = now_kst_iso()
 
         item = {
             "PK": f"WS#{workspace_id}",
@@ -127,7 +128,7 @@ class DynamoDBClient:
     ) -> Dict[str, Any]:
         """함수 생성"""
         function_id = f"fn-{shortuuid.uuid()[:8]}"
-        now = datetime.utcnow().isoformat()
+        now = now_kst_iso()
 
         item = {
             "PK": f"WS#{workspace_id}",
@@ -182,7 +183,7 @@ class DynamoDBClient:
     ) -> Optional[Dict[str, Any]]:
         """함수 수정"""
         update_expr = ["lastModified = :now"]
-        expr_values = {":now": datetime.utcnow().isoformat()}
+        expr_values = {":now": now_kst_iso()}
         expr_names: Dict[str, str] = {}
 
         for key, value in updates.items():
@@ -232,7 +233,19 @@ class DynamoDBClient:
     def create_log(self, log_data: Dict[str, Any]) -> Dict[str, Any]:
         """실행 로그 생성"""
         log_id = shortuuid.uuid()[:8]
-        timestamp = log_data.get("timestamp", datetime.utcnow().isoformat())
+        raw_timestamp = log_data.get("timestamp")
+        timestamp_dt = None
+
+        if isinstance(raw_timestamp, datetime):
+            timestamp_dt = to_kst(raw_timestamp)
+        elif isinstance(raw_timestamp, str):
+            try:
+                normalized_ts = raw_timestamp.replace("Z", "+00:00")
+                timestamp_dt = to_kst(datetime.fromisoformat(normalized_ts))
+            except ValueError:
+                timestamp_dt = None
+
+        timestamp = (timestamp_dt or now_kst()).isoformat()
 
         item = {
             "PK": f"FN#{log_data['functionId']}",
@@ -268,7 +281,7 @@ class DynamoDBClient:
     ) -> Dict[str, Any]:
         """빌드 작업 생성"""
         task_id = shortuuid.uuid()
-        now = datetime.utcnow().isoformat()
+        now = now_kst_iso()
 
         # app_name이 없으면 자동 생성
         if not app_name:
@@ -322,7 +335,7 @@ class DynamoDBClient:
     ) -> Optional[Dict[str, Any]]:
         """빌드 작업 상태 업데이트"""
         update_expr = ["#status = :status", "updated_at = :now"]
-        expr_values = {":status": status, ":now": datetime.utcnow().isoformat()}
+        expr_values = {":status": status, ":now": now_kst_iso()}
         expr_names = {"#status": "status"}
 
         if wasm_path is not None:

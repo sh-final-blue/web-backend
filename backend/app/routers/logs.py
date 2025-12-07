@@ -4,6 +4,7 @@ from app.models import LogsResponse, ExecutionLog, LokiLogsResponse, LokiLogEntr
 from app.database import db_client
 from app.config import settings
 from datetime import datetime
+from app.utils.timezone import to_kst
 import httpx
 
 router = APIRouter()
@@ -36,7 +37,7 @@ async def get_function_logs(
             ExecutionLog(
                 id=item["id"],
                 functionId=item["functionId"],
-                timestamp=datetime.fromisoformat(item["timestamp"]),
+                timestamp=to_kst(datetime.fromisoformat(item["timestamp"])),
                 status=item["status"],
                 duration=item["duration"],
                 statusCode=item["statusCode"],

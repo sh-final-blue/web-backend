@@ -4,6 +4,7 @@ from app.models import FunctionCreate, FunctionUpdate, FunctionConfig
 from app.database import db_client, s3_client
 from typing import List, Any, Dict, Optional
 from datetime import datetime
+from app.utils.timezone import now_kst_iso, to_kst
 from decimal import Decimal
 import base64
 import httpx
@@ -136,7 +137,7 @@ async def create_function(workspace_id: str, function: FunctionCreate):
             code=item["code"],
             invocationUrl=item.get("invocationUrl"),
             status=item["status"],
-            lastModified=datetime.fromisoformat(item["lastModified"]),
+            lastModified=to_kst(datetime.fromisoformat(item["lastModified"])),
             lastDeployed=None,
             invocations24h=item.get("invocations24h", 0),
             errors24h=item.get("errors24h", 0),
@@ -182,9 +183,9 @@ async def list_functions(workspace_id: str):
                 code=item["code"],
                 invocationUrl=item.get("invocationUrl"),
                 status=item["status"],
-                lastModified=datetime.fromisoformat(item["lastModified"]),
+                lastModified=to_kst(datetime.fromisoformat(item["lastModified"])),
                 lastDeployed=(
-                    datetime.fromisoformat(item["lastDeployed"])
+                    to_kst(datetime.fromisoformat(item["lastDeployed"]))
                     if item.get("lastDeployed")
                     else None
                 ),
@@ -232,9 +233,9 @@ async def get_function(workspace_id: str, function_id: str):
         code=item["code"],
         invocationUrl=item.get("invocationUrl"),
         status=item["status"],
-        lastModified=datetime.fromisoformat(item["lastModified"]),
+        lastModified=to_kst(datetime.fromisoformat(item["lastModified"])),
         lastDeployed=(
-            datetime.fromisoformat(item["lastDeployed"])
+            to_kst(datetime.fromisoformat(item["lastDeployed"]))
             if item.get("lastDeployed")
             else None
         ),
@@ -284,7 +285,7 @@ async def update_function(workspace_id: str, function_id: str, updates: Function
         normalized_url = normalize_invocation_url(updates.invocationUrl)
         update_data["invocationUrl"] = normalized_url or None
     if updates.lastDeployed is not None:
-        update_data["lastDeployed"] = updates.lastDeployed.isoformat()
+        update_data["lastDeployed"] = to_kst(updates.lastDeployed).isoformat()
     if updates.code is not None:
         # Base64 검증
         try:
@@ -320,9 +321,9 @@ async def update_function(workspace_id: str, function_id: str, updates: Function
         code=item["code"],
         invocationUrl=item.get("invocationUrl"),
         status=item["status"],
-        lastModified=datetime.fromisoformat(item["lastModified"]),
+        lastModified=to_kst(datetime.fromisoformat(item["lastModified"])),
         lastDeployed=(
-            datetime.fromisoformat(item["lastDeployed"])
+            to_kst(datetime.fromisoformat(item["lastDeployed"]))
             if item.get("lastDeployed")
             else None
         ),
@@ -477,7 +478,7 @@ async def invoke_function(
             log_entry = {
                 "id": log_id,
                 "functionId": function_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_kst_iso(),
                 "status": "success" if response.is_success else "error",
                 "duration": duration,
                 "statusCode": response.status_code,
@@ -552,7 +553,7 @@ async def invoke_function(
             log_entry = {
                 "id": str(uuid.uuid4()),
                 "functionId": function_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_kst_iso(),
                 "status": "error",
                 "duration": duration,
                 "statusCode": status.HTTP_504_GATEWAY_TIMEOUT,
@@ -604,7 +605,7 @@ async def invoke_function(
             log_entry = {
                 "id": str(uuid.uuid4()),
                 "functionId": function_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_kst_iso(),
                 "status": "error",
                 "duration": duration,
                 "statusCode": status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -657,7 +658,7 @@ async def invoke_function(
             log_entry = {
                 "id": str(uuid.uuid4()),
                 "functionId": function_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_kst_iso(),
                 "status": "error",
                 "duration": duration,
                 "statusCode": status.HTTP_500_INTERNAL_SERVER_ERROR,

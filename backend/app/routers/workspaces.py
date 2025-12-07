@@ -4,6 +4,7 @@ from app.models import WorkspaceCreate, WorkspaceUpdate, Workspace
 from app.database import db_client
 from typing import List
 from datetime import datetime
+from app.utils.timezone import to_kst
 
 router = APIRouter()
 
@@ -20,7 +21,7 @@ async def create_workspace(workspace: WorkspaceCreate):
             id=item["id"],
             name=item["name"],
             description=item["description"],
-            createdAt=datetime.fromisoformat(item["createdAt"]),
+            createdAt=to_kst(datetime.fromisoformat(item["createdAt"])),
             functionCount=item["functionCount"],
             invocations24h=item["invocations24h"],
             errorRate=item["errorRate"],
@@ -43,7 +44,7 @@ async def list_workspaces():
                 id=item["id"],
                 name=item["name"],
                 description=item.get("description", ""),
-                createdAt=datetime.fromisoformat(item["createdAt"]),
+                createdAt=to_kst(datetime.fromisoformat(item["createdAt"])),
                 functionCount=item.get("functionCount", 0),
                 invocations24h=item.get("invocations24h", 0),
                 errorRate=item.get("errorRate", 0.0),
@@ -77,7 +78,7 @@ async def get_workspace(workspace_id: str):
         id=item["id"],
         name=item["name"],
         description=item.get("description", ""),
-        createdAt=datetime.fromisoformat(item["createdAt"]),
+        createdAt=to_kst(datetime.fromisoformat(item["createdAt"])),
         functionCount=item.get("functionCount", 0),
         invocations24h=item.get("invocations24h", 0),
         errorRate=item.get("errorRate", 0.0),
@@ -109,7 +110,7 @@ async def update_workspace(workspace_id: str, updates: WorkspaceUpdate):
         id=item["id"],
         name=item["name"],
         description=item.get("description", ""),
-        createdAt=datetime.fromisoformat(item["createdAt"]),
+        createdAt=to_kst(datetime.fromisoformat(item["createdAt"])),
         functionCount=item.get("functionCount", 0),
         invocations24h=item.get("invocations24h", 0),
         errorRate=item.get("errorRate", 0.0),

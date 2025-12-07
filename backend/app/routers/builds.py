@@ -16,9 +16,11 @@ from app.models import (
 )
 from app.database import db_client, s3_client
 from app.config import settings
+from app.utils.timezone import to_kst
 import logging
 import httpx
 import asyncio
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,16 @@ router = APIRouter()
 
 
 # ===== Helper Functions =====
+def _to_kst_iso_string(value: Optional[str]) -> str:
+    """ISO 문자열을 KST(+09:00) 기준 문자열로 변환. 실패 시 원본 반환."""
+    if not value:
+        return value or ""
+    try:
+        return to_kst(datetime.fromisoformat(value)).isoformat()
+    except Exception:
+        return value
+
+
 def _get_workspace_id_from_task(task_id: str) -> Optional[str]:
     """task_id로부터 workspace_id 조회"""
     task = db_client.get_build_task_by_id(task_id)
@@ -306,8 +318,8 @@ async def list_workspace_tasks(workspace_id: str):
                     task_id=task["task_id"],
                     status=task["status"],
                     app_name=task.get("app_name"),
-                    created_at=task.get("created_at", ""),
-                    updated_at=task.get("updated_at", ""),
+                    created_at=_to_kst_iso_string(task.get("created_at", "")),
+                    updated_at=_to_kst_iso_string(task.get("updated_at", "")),
                     result=result,
                     error=task.get("error_message"),
                 )
