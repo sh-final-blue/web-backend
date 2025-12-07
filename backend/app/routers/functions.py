@@ -12,6 +12,8 @@ import time
 import re
 import logging
 from urllib.parse import urlparse
+import subprocess
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -328,6 +330,8 @@ async def update_function(workspace_id: str, function_id: str, updates: Function
     )
 
 
+
+
 @router.delete(
     "/workspaces/{workspace_id}/functions/{function_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -346,6 +350,37 @@ async def delete_function(workspace_id: str, function_id: str):
                 }
             },
         )
+
+    # SpinApp 리소스 삭제 (kubectl delete spinapp {slug})
+    function_name = existing.get("name")
+    if function_name:
+        try:
+            # 이름 규칙 (User clarified app_name is function_name)
+            slug = function_name
+            
+            # kubectl 명령어 실행
+            cmd = ["kubectl", "delete", "spinapp", slug, "-n", "default"]
+            logger.info(f"Executing: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd, 
+                capture_output=True, 
+                text=True,
+                check=False  # 에러 발생해도 예외 발생시키지 않고 stderr 확인
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"Successfully deleted spinapp {slug}")
+            else:
+                # 이미 없는 경우(NotFound)는 무시 가능, 그 외에는 에러 로그
+                if "NotFound" not in result.stderr and "not found" not in result.stderr:
+                    logger.warning(f"Failed to delete spinapp {slug}: {result.stderr}")
+                else:
+                    logger.info(f"SpinApp {slug} not found, skipping deletion")
+
+        except Exception as e:
+            logger.error(f"Error deleting SpinApp resources: {e}")
+            # 리소스 삭제 실패가 DB 삭제를 막지 않도록 함
 
     # S3에서 코드 삭제
     try:
