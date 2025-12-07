@@ -225,6 +225,7 @@ export default function FunctionDetail() {
       setTimeout(() => {
         setIsTestDisabled(false);
         toast.success('배포가 완료되었습니다');
+        window.location.reload();
       }, 5000);
     }
   };
