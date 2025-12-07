@@ -544,6 +544,29 @@ async def invoke_function(
     except httpx.TimeoutException:
         duration = int((time.time() - start_time) * 1000)
         duration_decimal = Decimal(str(duration))
+
+        # 실패 로그 저장
+        try:
+            log_entry = {
+                "id": str(uuid.uuid4()),
+                "functionId": function_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "error",
+                "duration": duration,
+                "statusCode": status.HTTP_504_GATEWAY_TIMEOUT,
+                "requestBody": request_body,
+                "responseBody": {
+                    "error": "Function execution timed out",
+                    "timeoutSeconds": timeout_seconds,
+                },
+                "logs": [],
+                "level": "error",
+            }
+            safe_log_entry = _to_dynamo_safe(log_entry)
+            db_client.create_log(safe_log_entry)
+        except Exception as log_err:
+            logger.error("Failed to save timeout log: %s", log_err)
+
         try:
             db_client.update_function(
                 workspace_id,
@@ -574,6 +597,28 @@ async def invoke_function(
     except httpx.HTTPError as e:
         duration = int((time.time() - start_time) * 1000)
         duration_decimal = Decimal(str(duration))
+
+        try:
+            log_entry = {
+                "id": str(uuid.uuid4()),
+                "functionId": function_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "error",
+                "duration": duration,
+                "statusCode": status.HTTP_503_SERVICE_UNAVAILABLE,
+                "requestBody": request_body,
+                "responseBody": {
+                    "error": "Failed to invoke function",
+                    "detail": str(e),
+                },
+                "logs": [],
+                "level": "error",
+            }
+            safe_log_entry = _to_dynamo_safe(log_entry)
+            db_client.create_log(safe_log_entry)
+        except Exception as log_err:
+            logger.error("Failed to save invocation error log: %s", log_err)
+
         try:
             db_client.update_function(
                 workspace_id,
@@ -605,6 +650,28 @@ async def invoke_function(
         logger.error(f"Unexpected error invoking function {function_id}: {e}", exc_info=True)
         duration = int((time.time() - start_time) * 1000)
         duration_decimal = Decimal(str(duration))
+
+        try:
+            log_entry = {
+                "id": str(uuid.uuid4()),
+                "functionId": function_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                "status": "error",
+                "duration": duration,
+                "statusCode": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                "requestBody": request_body,
+                "responseBody": {
+                    "error": "Unexpected error invoking function",
+                    "detail": str(e),
+                },
+                "logs": [],
+                "level": "error",
+            }
+            safe_log_entry = _to_dynamo_safe(log_entry)
+            db_client.create_log(safe_log_entry)
+        except Exception as log_err:
+            logger.error("Failed to save unexpected error log: %s", log_err)
+
         try:
             db_client.update_function(
                 workspace_id,
