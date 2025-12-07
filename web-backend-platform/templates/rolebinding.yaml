@@ -3,7 +3,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ include "web-backend.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: default
 subjects:
   - kind: ServiceAccount
     name: {{ include "web-backend.serviceAccountName" . }}

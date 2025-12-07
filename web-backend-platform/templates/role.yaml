@@ -3,7 +3,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ include "web-backend.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: default
 rules:
   - apiGroups: ["core.spinwasm.org", "core.spinkube.dev"]
     resources: ["spinapps"]
