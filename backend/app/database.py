@@ -50,11 +50,23 @@ class DynamoDBClient:
     def list_workspaces(self) -> List[Dict[str, Any]]:
         """워크스페이스 목록 조회"""
         # 모든 워크스페이스 스캔 (실제 프로덕션에서는 GSI 사용 권장)
-        response = self.table.scan(
-            FilterExpression="begins_with(PK, :pk) AND SK = :sk",
-            ExpressionAttributeValues={":pk": "WS#", ":sk": "METADATA"},
-        )
-        return response.get("Items", [])
+        # 페이지네이션 처리
+        items = []
+        scan_kwargs = {
+            "FilterExpression": "begins_with(PK, :pk) AND SK = :sk",
+            "ExpressionAttributeValues": {":pk": "WS#", ":sk": "METADATA"},
+        }
+
+        while True:
+            response = self.table.scan(**scan_kwargs)
+            items.extend(response.get("Items", []))
+
+            # 다음 페이지가 없으면 종료
+            if "LastEvaluatedKey" not in response:
+                break
+            scan_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+
+        return items
 
     def update_workspace(
         self, workspace_id: str, name: Optional[str] = None, description: Optional[str] = None
