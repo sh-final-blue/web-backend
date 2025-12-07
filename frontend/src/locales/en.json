@@ -109,13 +109,13 @@
       "description": "Which methods should this function handle?"
     },
     "resourceConfig": {
-      "title": "Resource Configuration",
+      "title": "Resource Configuration (Mockup)",
       "description": "Memory and timeout settings",
       "memory": "Memory",
       "timeout": "Timeout (seconds)"
     },
     "envVars": {
-      "title": "Environment Variables",
+      "title": "Environment Variables (Mockup)",
       "description": "Key-value pairs available at runtime",
       "keyPlaceholder": "KEY",
       "valuePlaceholder": "value",

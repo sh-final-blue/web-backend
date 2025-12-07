@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -183,9 +184,16 @@ export default function NewFunction() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="relative overflow-hidden border-amber-200 bg-amber-50/60">
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-x-3 top-5 border-t-2 border-amber-300 border-dashed" />
+                <div className="absolute inset-x-3 bottom-5 border-t-2 border-amber-300 border-dashed" />
+              </div>
               <CardHeader>
-                <CardTitle>{t('newFunction.resourceConfig.title')}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle>{t('newFunction.resourceConfig.title')}</CardTitle>
+                  <Badge variant="outline" className="text-xs uppercase">Mock</Badge>
+                </div>
                 <CardDescription>{t('newFunction.resourceConfig.description')}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -218,9 +226,16 @@ export default function NewFunction() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="relative overflow-hidden border-amber-200 bg-amber-50/60">
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-x-3 top-5 border-t-2 border-amber-300 border-dashed" />
+                <div className="absolute inset-x-3 bottom-5 border-t-2 border-amber-300 border-dashed" />
+              </div>
               <CardHeader>
-                <CardTitle>{t('newFunction.envVars.title')}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle>{t('newFunction.envVars.title')}</CardTitle>
+                  <Badge variant="outline" className="text-xs uppercase">Mock</Badge>
+                </div>
                 <CardDescription>{t('newFunction.envVars.description')}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">

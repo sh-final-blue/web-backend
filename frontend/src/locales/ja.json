@@ -109,13 +109,13 @@
       "description": "この関数が処理するメソッドは？"
     },
     "resourceConfig": {
-      "title": "リソース設定",
+      "title": "リソース設定 (Mockup)",
       "description": "メモリとタイムアウトの設定",
       "memory": "メモリ",
       "timeout": "タイムアウト (秒)"
     },
     "envVars": {
-      "title": "環境変数",
+      "title": "環境変数 (Mockup)",
       "description": "ランタイムで使用可能なキーと値のペア",
       "keyPlaceholder": "KEY",
       "valuePlaceholder": "値",
