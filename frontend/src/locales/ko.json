@@ -140,7 +140,7 @@
     "deleteSuccess": "함수가 삭제되었습니다",
     "tabs": {
       "overview": "개요",
-      "test": "테스트 & 실행",
+      "test": "실행",
       "logs": "호출 이력",
       "code": "코드"
     },
@@ -159,7 +159,7 @@
       "never": "없음"
     },
     "test": {
-      "request": "요청",
+      "request": "실행",
       "requestDescription": "함수를 테스트할 JSON 요청 본문 입력",
       "invokeButton": "함수 호출",
       "invoking": "호출 중...",
