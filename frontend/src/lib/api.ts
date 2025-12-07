@@ -208,6 +208,11 @@ export interface LogsResponse {
   total: number;
 }
 
+export async function getWorkspaceLogs(workspaceId: string, limit: number = 50): Promise<LogItem[]> {
+  const response = await fetchApi<LogsResponse>(`/api/workspaces/${workspaceId}/logs?limit=${limit}`);
+  return response.logs;
+}
+
 export async function getFunctionLogs(workspaceId: string, functionId: string): Promise<LogItem[]> {
   // Assuming the backend supports query params for limit, e.g. ?limit=100
   const response = await fetchApi<LogsResponse>(`/api/workspaces/${workspaceId}/functions/${functionId}/logs?limit=100`);

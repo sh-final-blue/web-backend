@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '@/contexts/AppContext';
@@ -13,12 +14,17 @@ import { formatDistanceToNow } from 'date-fns';
 
 export default function WorkspaceDashboard() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { workspaces, functions, executionLogs } = useApp();
+  const { workspaces, functions, executionLogs, loadWorkspaceLogs } = useApp();
   const { t } = useTranslation();
   const navigate = useNavigate();
 
   const workspace = workspaces.find(ws => ws.id === workspaceId);
   const workspaceFunctions = functions.filter(fn => fn.workspaceId === workspaceId);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    loadWorkspaceLogs(workspaceId);
+  }, [workspaceId, loadWorkspaceLogs]);
 
   if (!workspace) {
     return (
