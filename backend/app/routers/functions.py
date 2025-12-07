@@ -283,6 +283,8 @@ async def update_function(workspace_id: str, function_id: str, updates: Function
     if updates.invocationUrl is not None:
         normalized_url = normalize_invocation_url(updates.invocationUrl)
         update_data["invocationUrl"] = normalized_url or None
+    if updates.lastDeployed is not None:
+        update_data["lastDeployed"] = updates.lastDeployed.isoformat()
     if updates.code is not None:
         # Base64 검증
         try:

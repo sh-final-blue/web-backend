@@ -95,6 +95,7 @@ export interface UpdateFunctionData {
   code?: string; // Must be Base64 encoded
   status?: string;
   invocationUrl?: string | null;
+   lastDeployed?: string | null;
 }
 
 export interface LogItem {

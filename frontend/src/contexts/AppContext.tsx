@@ -235,6 +235,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (updates.environmentVariables !== undefined) apiUpdates.environmentVariables = updates.environmentVariables;
       if (updates.status !== undefined) apiUpdates.status = updates.status;
       if (updates.invocationUrl !== undefined) apiUpdates.invocationUrl = updates.invocationUrl;
+      if (updates.lastDeployed !== undefined) {
+        apiUpdates.lastDeployed = updates.lastDeployed ? updates.lastDeployed.toISOString() : null;
+      }
       if (updates.code !== undefined) apiUpdates.code = encodeBase64(updates.code);
       
       const fn = await api.updateFunction(currentWorkspaceId, id, apiUpdates);
@@ -412,11 +415,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return '';
         }
 
+        const deployedAt = new Date();
+
         // Step 5: Function의 invocationUrl 업데이트
         try {
           await api.updateFunction(currentWorkspaceId, functionId, {
             status: 'active',
             invocationUrl: endpoint,
+            lastDeployed: deployedAt.toISOString(),
           });
         } catch (updateError) {
           console.warn('Failed to persist invocationUrl to backend (non-blocking):', updateError);
@@ -425,7 +431,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // 로컬 state 업데이트
         setFunctions(prev => prev.map(f =>
           f.id === functionId
-            ? { ...f, status: 'active', invocationUrl: endpoint }
+            ? { ...f, status: 'active', invocationUrl: endpoint, lastDeployed: deployedAt }
               : f
           ));
 
