@@ -53,7 +53,7 @@ export default function Landing() {
           <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
             {t('landing.hero.title')}
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-xl text-muted-foreground mx-auto whitespace-nowrap">
             {t('landing.hero.subtitle')}
           </p>
         </div>
