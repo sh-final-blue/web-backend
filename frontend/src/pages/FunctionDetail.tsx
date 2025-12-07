@@ -297,8 +297,8 @@ export default function FunctionDetail() {
             <TabsTrigger value="overview">{t('functionDetail.tabs.overview')}</TabsTrigger>
             <TabsTrigger value="test">{t('functionDetail.tabs.test')}</TabsTrigger>
             <TabsTrigger value="logs">{t('functionDetail.tabs.logs')}</TabsTrigger>
-            <TabsTrigger value="realtime-logs">Real-time Logs</TabsTrigger>
-            <TabsTrigger value="metrics">Metrics</TabsTrigger>
+            <TabsTrigger value="realtime-logs">로그</TabsTrigger>
+            <TabsTrigger value="metrics">CPU</TabsTrigger>
             <TabsTrigger value="code">{t('functionDetail.tabs.code')}</TabsTrigger>
           </TabsList>
 
@@ -473,7 +473,7 @@ export default function FunctionDetail() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Real-time Logs (Loki)</CardTitle>
+                  <CardTitle>로그 (Loki)</CardTitle>
                   <CardDescription>Live logs from your function execution</CardDescription>
                 </div>
                 <Button
@@ -520,7 +520,7 @@ export default function FunctionDetail() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Prometheus Metrics</CardTitle>
+                  <CardTitle>CPU (Prometheus)</CardTitle>
                   <CardDescription>Pod metrics and resource usage</CardDescription>
                 </div>
                 <Button

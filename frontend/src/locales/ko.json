@@ -141,7 +141,7 @@
     "tabs": {
       "overview": "개요",
       "test": "테스트 & 실행",
-      "logs": "로그",
+      "logs": "호출 이력",
       "code": "코드"
     },
     "endpoint": {
@@ -171,7 +171,7 @@
       "success": "함수가 성공적으로 호출되었습니다"
     },
     "logs": {
-      "title": "실행 로그",
+      "title": "호출 이력",
       "description": "최근 함수 호출",
       "noLogs": "아직 로그가 없습니다",
       "timestamp": "타임스탬프",
