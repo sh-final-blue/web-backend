@@ -10,6 +10,60 @@ import httpx
 router = APIRouter()
 
 
+@router.get("/workspaces/{workspace_id}/logs", response_model=LogsResponse)
+async def get_workspace_logs(
+    workspace_id: str, limit: int = Query(default=50, le=500, ge=1)
+):
+    """워크스페이스 전체 함수의 최근 실행 로그 조회"""
+    workspace = db_client.get_workspace(workspace_id)
+    if not workspace:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "NOT_FOUND",
+                    "message": f"Workspace {workspace_id} not found",
+                }
+            },
+        )
+
+    try:
+        functions = db_client.list_functions(workspace_id)
+        per_function_limit = min(limit, 50)
+        logs = []
+
+        for fn in functions:
+            items = db_client.list_logs(fn["id"], limit=per_function_limit)
+            logs.extend(
+                [
+                    ExecutionLog(
+                        id=item["id"],
+                        functionId=item["functionId"],
+                        timestamp=to_kst(datetime.fromisoformat(item["timestamp"])),
+                        status=item["status"],
+                        duration=item["duration"],
+                        statusCode=item["statusCode"],
+                        requestBody=item.get("requestBody"),
+                        responseBody=item.get("responseBody"),
+                        logs=item.get("logs", []),
+                        level=item.get("level", "info"),
+                    )
+                    for item in items
+                ]
+            )
+
+        # 최신순으로 정렬 후 limit만큼 자르기
+        logs.sort(key=lambda log: log.timestamp, reverse=True)
+        trimmed_logs = logs[:limit]
+
+        return LogsResponse(logs=trimmed_logs, total=len(trimmed_logs))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": {"code": "LIST_ERROR", "message": str(e)}},
+        )
+
+
 @router.get(
     "/workspaces/{workspace_id}/functions/{function_id}/logs", response_model=LogsResponse
 )

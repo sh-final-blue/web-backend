@@ -60,6 +60,7 @@ interface AppContextType {
   invokeFunction: (id: string, requestBody: any) => Promise<ExecutionLog>;
   getFunctionLogs: (functionId: string) => Promise<ExecutionLog[]>;
   loadFunctions: (workspaceId: string) => Promise<void>;
+  loadWorkspaceLogs: (workspaceId: string) => Promise<void>;
   getLokiLogs: (functionId: string, limit?: number) => Promise<LokiLogsResponse>;
   getPrometheusMetrics: (functionId: string) => Promise<PrometheusMetricsResponse>;
   buildAndDeployFunction: (functionId: string, code: string) => Promise<string>;
@@ -132,6 +133,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setFunctions(mapped);
     } catch (error) {
       console.error('Failed to load functions:', error);
+    }
+  }, []);
+
+  const loadWorkspaceLogs = useCallback(async (workspaceId: string): Promise<void> => {
+    try {
+      const logs = await api.getWorkspaceLogs(workspaceId, 50);
+      const mappedLogs = logs.map(log => ({
+        ...log,
+        timestamp: new Date(log.timestamp)
+      }));
+      setExecutionLogs(mappedLogs);
+    } catch (error) {
+      console.error('Failed to load workspace logs:', error);
+      setExecutionLogs([]);
     }
   }, []);
 
@@ -323,7 +338,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...log,
         timestamp: new Date(log.timestamp)
       }));
-      setExecutionLogs(mappedLogs);
+      setExecutionLogs(prev => {
+        // 최신 로그로 덮어쓰되 다른 함수 로그는 유지
+        const withoutCurrentFn = prev.filter(log => log.functionId !== functionId);
+        const combined = [...withoutCurrentFn, ...mappedLogs];
+        combined.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        return combined.slice(0, 200);
+      });
       return mappedLogs;
     } catch (error) {
       console.error('Failed to load logs:', error);
@@ -470,6 +491,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createFunction: api.createFunction,
         updateFunction: api.updateFunction,
         deleteFunction: api.deleteFunction,
+        getWorkspaceLogs: api.getWorkspaceLogs,
         getFunctionLogs: api.getFunctionLogs,
         encodeBase64,
         decodeBase64,
@@ -492,6 +514,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     invokeFunction,
     getFunctionLogs,
     loadFunctions,
+    loadWorkspaceLogs,
     getLokiLogs,
     getPrometheusMetrics,
     buildAndDeployFunction,
@@ -509,6 +532,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     invokeFunction,
     getFunctionLogs,
     loadFunctions,
+    loadWorkspaceLogs,
     getLokiLogs,
     getPrometheusMetrics,
     buildAndDeployFunction,
