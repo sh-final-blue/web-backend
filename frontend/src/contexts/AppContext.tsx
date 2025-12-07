@@ -62,7 +62,7 @@ interface AppContextType {
   loadFunctions: (workspaceId: string) => Promise<void>;
   getLokiLogs: (functionId: string, limit?: number) => Promise<LokiLogsResponse>;
   getPrometheusMetrics: (functionId: string) => Promise<PrometheusMetricsResponse>;
-  buildAndDeployFunction: (functionId: string, code: string, onProgress?: (status: string) => void) => Promise<string>;
+  buildAndDeployFunction: (functionId: string, code: string) => Promise<string>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -350,8 +350,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const buildAndDeployFunction = useCallback(async (
     functionId: string,
-    code: string,
-    onProgress?: (status: string) => void
+    code: string
   ): Promise<string> => {
     if (!currentWorkspaceId) throw new Error('No workspace selected');
 
@@ -360,12 +359,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     try {
       // Step 1: 코드를 .py 파일로 변환
-      onProgress?.('Preparing code...');
       const blob = new Blob([code], { type: 'text/plain' });
       const file = new File([blob], `${fn.name}.py`, { type: 'text/plain' });
 
       // Step 2: Build & Push
-      onProgress?.('Building and pushing image...');
       const buildResponse = await api.buildAndPush(
         file,
         '217350599014.dkr.ecr.ap-northeast-2.amazonaws.com/blue-final-faas-app',
@@ -377,7 +374,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       );
 
       const taskId = buildResponse.task_id;
-      onProgress?.(`Build task created: ${taskId}`);
 
       // Step 3: Polling (최대 10분)
       let attempts = 0;
@@ -390,15 +386,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const statusResponse = await api.getTaskStatus(taskId);
         const status = statusResponse.status;
 
-        onProgress?.(`Build status: ${status} (${attempts}/${maxAttempts})`);
-
         if (status === 'completed' || status === 'done') {
           const imageUrl = statusResponse.result?.image_url;
           if (!imageUrl) {
             throw new Error('Build completed but no image URL returned');
           }
-
-        onProgress?.('Build completed! Deploying to Kubernetes...');
 
         // Step 4: Deploy to K8s
         const deployResponse = await api.deployToK8s({
@@ -412,8 +404,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         const endpoint = deployResponse.endpoint;
         if (!endpoint) {
-          const provisioningMessage = 'Deployment completed; endpoint is provisioning. Please wait ~5 seconds and retry.';
-          onProgress?.(provisioningMessage);
           setFunctions(prev => prev.map(f =>
             f.id === functionId
               ? { ...f, status: 'deploying' }
@@ -421,8 +411,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           ));
           return '';
         }
-
-        onProgress?.(`Deployed successfully: ${endpoint}`);
 
         // Step 5: Function의 invocationUrl 업데이트
         try {
