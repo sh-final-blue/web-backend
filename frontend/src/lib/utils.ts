@@ -2,7 +2,7 @@
 export function toKSTDate(date: Date | string | number): Date {
   const d = typeof date === 'string' || typeof date === 'number' ? new Date(date) : date;
   // 9시간(32400000ms) 더하기
-  return new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return new Date(d.getTime());
 }
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
