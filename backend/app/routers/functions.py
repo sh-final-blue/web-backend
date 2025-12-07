@@ -450,18 +450,22 @@ async def invoke_function(
 
     # 실행 시작 시간
     start_time = time.time()
-    timeout_seconds = float(function.get("timeout", 30) or 30)
+    timeout_seconds = float(function.get("timeout", 60) or 60)
     prev_invocations = Decimal(str(function.get("invocations24h", 0) or 0))
     prev_errors = Decimal(str(function.get("errors24h", 0) or 0))
     prev_avg_duration = Decimal(str(function.get("avgDuration", 0) or 0))
 
     try:
         # 실제 Function 엔드포인트 호출
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds)) as client:
+        # limits: 연결 재사용 비활성화로 K8s Service 로드밸런싱 분산 개선
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout_seconds),
+            limits=httpx.Limits(max_keepalive_connections=0),
+        ) as client:
             response = await client.post(
                 invocation_url,
                 json=request_body,
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": "application/json", "Connection": "close"},
             )
 
             # 실행 시간 계산
