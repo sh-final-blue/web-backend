@@ -121,12 +121,24 @@ export interface LokiLogsResponse {
   function_id: string;
 }
 
+export interface PrometheusMetricPoint {
+  timestamp: number;
+  value: number;
+}
+
+export interface PrometheusMetricsData {
+  cpu_total: number | null;
+  cpu_series: PrometheusMetricPoint[];
+  window_seconds: number;
+  instant_query: string;
+  range_query: string;
+  raw_instant?: any;
+  raw_range?: any;
+}
+
 export interface PrometheusMetricsResponse {
   status: string;
-  data: {
-    resultType?: string;
-    result?: any[];
-  };
+  data: PrometheusMetricsData;
   function_id: string;
 }
 

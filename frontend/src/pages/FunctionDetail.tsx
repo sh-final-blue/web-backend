@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Activity, AlertCircle, Clock, Copy, Play, Trash, RefreshCw } from 'lucide-react';
+import { Activity, AlertCircle, Clock, Copy, Play, Trash, RefreshCw, Cpu } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toKSTDate } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -52,6 +52,15 @@ export default function FunctionDetail() {
   const [prometheusMetrics, setPrometheusMetrics] = useState<PrometheusMetricsResponse | null>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
+
+  // Derived metrics values for easier rendering
+  const metricsData = prometheusMetrics?.data;
+  const cpuSeries = metricsData?.cpu_series ?? [];
+  const windowMinutes = metricsData ? Math.round((metricsData.window_seconds ?? 0) / 60) : null;
+  const currentCpu = metricsData?.cpu_total ?? null;
+  const avgCpu = cpuSeries.length > 0 ? cpuSeries.reduce((sum, point) => sum + point.value, 0) / cpuSeries.length : null;
+  const peakCpu = cpuSeries.length > 0 ? Math.max(...cpuSeries.map(point => point.value)) : null;
+  const recentCpuSeries = cpuSeries.slice(-20); // last 20 points for table display
 
   // Deploy State
   const [isDeploying, setIsDeploying] = useState(false);
@@ -519,18 +528,73 @@ export default function FunctionDetail() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="p-4 bg-muted rounded-md">
-                      <div className="text-sm font-medium mb-2">Status: {prometheusMetrics.status}</div>
-                      <div className="text-sm text-muted-foreground mb-2">Function ID: {prometheusMetrics.function_id}</div>
-                      {prometheusMetrics.data.result && prometheusMetrics.data.result.length > 0 ? (
-                        <div className="mt-4">
-                          <div className="font-medium mb-2">Metrics Data:</div>
-                          <pre className="text-xs overflow-auto max-h-[400px] bg-background p-3 rounded">
-                            {JSON.stringify(prometheusMetrics.data.result, null, 2)}
-                          </pre>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <MetricsCard
+                        title="Current CPU (1m rate)"
+                        value={currentCpu !== null ? `${currentCpu.toFixed(4)} cores` : '--'}
+                        icon={Cpu}
+                        description="Sum of container CPU usage for this function"
+                      />
+                      <MetricsCard
+                        title="Avg CPU (last hour)"
+                        value={avgCpu !== null ? `${avgCpu.toFixed(4)} cores` : '--'}
+                        icon={Activity}
+                        description="Based on 1m samples"
+                      />
+                      <MetricsCard
+                        title="Peak CPU (last hour)"
+                        value={peakCpu !== null ? `${peakCpu.toFixed(4)} cores` : '--'}
+                        icon={Clock}
+                        description="Highest 1m rate in window"
+                      />
+                    </div>
+
+                    <div className="p-4 bg-muted rounded-md text-sm flex flex-col gap-1">
+                      <div><span className="font-medium">Status:</span> {prometheusMetrics.status}</div>
+                      <div><span className="font-medium">Function ID:</span> {prometheusMetrics.function_id}</div>
+                      <div>
+                        <span className="font-medium">Lookback:</span>{' '}
+                        {windowMinutes ? `${windowMinutes} minutes` : 'n/a'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Samples:</span> {cpuSeries.length}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">CPU usage timeline</div>
+                        <div className="text-xs text-muted-foreground">
+                          Showing last {recentCpuSeries.length} points (1m step)
+                        </div>
+                      </div>
+                      {cpuSeries.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">
+                          No CPU samples yet. Invoke the function to generate metrics.
                         </div>
                       ) : (
-                        <div className="text-sm text-muted-foreground mt-2">No metric results found</div>
+                        <div className="rounded-md border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Timestamp</TableHead>
+                                <TableHead>CPU (cores)</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {recentCpuSeries.map((point, idx) => (
+                                <TableRow key={`${point.timestamp}-${idx}`}>
+                                  <TableCell className="text-muted-foreground">
+                                    {new Date(point.timestamp * 1000).toLocaleString()}
+                                  </TableCell>
+                                  <TableCell className="font-mono">
+                                    {point.value.toFixed(4)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
                       )}
                     </div>
                   </div>

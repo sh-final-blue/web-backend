@@ -127,18 +127,43 @@ class LokiLogsResponse(BaseModel):
 
 
 # ===== Prometheus Metrics 모델 =====
-class PrometheusMetric(BaseModel):
+class PrometheusTimeseriesPoint(BaseModel):
+    """Prometheus 타임시리즈 포인트"""
+
+    timestamp: float = Field(..., description="UNIX 타임스탬프 (초)")
+    value: float = Field(..., description="메트릭 값")
+
+
+class PrometheusMetricsData(BaseModel):
     """Prometheus 메트릭 데이터"""
 
-    metric: Dict[str, Any] = Field(..., description="메트릭 라벨")
-    value: List[Any] = Field(..., description="[타임스탬프, 값]")
+    cpu_total: Optional[float] = Field(
+        None,
+        description="1분 rate 기준으로 합산된 CPU 사용량 (cores)",
+    )
+    cpu_series: List[PrometheusTimeseriesPoint] = Field(
+        default_factory=list,
+        description="조회 윈도우 동안의 CPU 사용률 시계열",
+    )
+    window_seconds: int = Field(
+        default=3600,
+        description="조회 기간(초). 기본 1시간.",
+    )
+    instant_query: str = Field(..., description="사용된 인스턴트 PromQL 쿼리")
+    range_query: str = Field(..., description="사용된 구간 PromQL 쿼리")
+    raw_instant: Optional[Dict[str, Any]] = Field(
+        None, description="원본 인스턴트 쿼리 응답 데이터"
+    )
+    raw_range: Optional[Dict[str, Any]] = Field(
+        None, description="원본 구간 쿼리 응답 데이터"
+    )
 
 
 class PrometheusMetricsResponse(BaseModel):
     """Prometheus 메트릭 조회 응답"""
 
     status: str = Field(..., description="응답 상태")
-    data: Dict[str, Any] = Field(..., description="메트릭 데이터")
+    data: PrometheusMetricsData = Field(..., description="메트릭 데이터")
     function_id: str = Field(..., description="함수 ID")
 
 
