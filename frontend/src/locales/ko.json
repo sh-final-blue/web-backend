@@ -109,13 +109,13 @@
       "description": "이 함수가 처리할 메서드는?"
     },
     "resourceConfig": {
-      "title": "리소스 구성 (Mockup)",
+      "title": "리소스 구성",
       "description": "메모리 및 타임아웃 설정",
       "memory": "메모리",
       "timeout": "타임아웃 (초)"
     },
     "envVars": {
-      "title": "환경 변수 (Mockup)",
+      "title": "환경 변수",
       "description": "런타임에 사용 가능한 키-값 쌍",
       "keyPlaceholder": "KEY",
       "valuePlaceholder": "값",
