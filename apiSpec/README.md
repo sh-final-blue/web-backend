@@ -1,119 +1,91 @@
 # API Specification
 
-## Live API Documentation
-
+## Live API Docs
 - **Production**: [https://api.eunha.icu/docs](https://api.eunha.icu/docs)
-- **Local Development**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Local**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## Offline Viewer
-
-Open `../swagger-viewer.html` in your browser to view the offline API specification.
-
+Open `../swagger-viewer.html` in your browser for the bundled spec.
 ```bash
-# Serve the project root
 cd ..
 python -m http.server 8000
-
 # Then open http://localhost:8000/swagger-viewer.html
 ```
 
-## API Specification Files
+## Spec Snapshot
+`faas-backend/faas-api.yaml`
+- **OpenAPI**: 1.0.0
+- **Last validated**: 2025-12-07
+- **Status**: ✅ Production-ready snapshot (authoritative source is the live docs above)
 
-### faas-backend/faas-api.yaml
-- **Version**: 2.0.0
-- **Last Updated**: 2025-12-06
-- **Status**: ✅ Production Ready
-
-**Note**: This YAML file is a snapshot. For the most up-to-date API spec, always refer to the live documentation at `https://api.eunha.icu/docs`.
-
-## Latest Changes (2025-12-06)
-
-### ✨ IRSA Support
-- `username` parameter defaults to "AWS" (optional)
-- `password` parameter is now optional
-- Builder Service can use IRSA for ECR authentication
-- Backward compatible with token-based auth
-
-### ✨ Status Compatibility
-- Supports both "completed" and "done" status from Builder Service
-- Handles status transitions: `pending` → `running` → `completed`/`done` → `failed`
-
-### ✨ function_id Support
-- Deploy API now accepts `function_id` parameter
-- Used for Pod labeling and log filtering
-- Enables per-function log queries via Loki
+## Latest Changes (2025-12-07)
+- IRSA-first ECR auth: `username` defaults to `AWS`, `password` optional.
+- Build status accepts both `completed` and `done`.
+- `function_id` is propagated to deployments for pod labels and Loki log filtering.
 
 ## Key Endpoints
+### Workspaces
+- `GET /api/workspaces` — list
+- `POST /api/workspaces` — create
+- `GET /api/workspaces/{workspace_id}` — detail
+- `PATCH /api/workspaces/{workspace_id}` — update
+- `DELETE /api/workspaces/{workspace_id}` — delete
 
-### Build & Deploy
-- `POST /api/v1/build-and-push` - Build Python code to WASM and push to ECR
-- `GET /api/v1/tasks/{task_id}` - Poll build task status
-- `POST /api/v1/deploy` - Deploy SpinApp to Kubernetes
+### Functions
+- `GET /api/workspaces/{workspace_id}/functions` — list
+- `POST /api/workspaces/{workspace_id}/functions` — create (Base64 `code`)
+- `GET /api/workspaces/{workspace_id}/functions/{function_id}` — detail
+- `PATCH /api/workspaces/{workspace_id}/functions/{function_id}` — update/config/code
+- `DELETE /api/workspaces/{workspace_id}/functions/{function_id}` — delete
+- `POST /api/workspaces/{workspace_id}/functions/{function_id}/invoke` — invoke
 
-### Workspace & Function Management
-- `POST /api/workspaces` - Create workspace
-- `GET /api/workspaces` - List workspaces
-- `POST /api/workspaces/{workspace_id}/functions` - Create function
-- `GET /api/workspaces/{workspace_id}/functions` - List functions
+### Logs & Metrics
+- `GET /api/workspaces/{workspace_id}/logs?limit=N` — workspace recent logs
+- `GET /api/workspaces/{workspace_id}/functions/{function_id}/logs?limit=N` — function logs (DynamoDB)
+- `GET /api/functions/{function_id}/loki-logs?limit=N` — realtime Loki
+- `GET /api/functions/{function_id}/metrics` — Prometheus CPU metrics
 
-### Logs
-- `GET /api/workspaces/{workspace_id}/functions/{function_id}/logs` - Get execution logs
+### Build & Deploy (Builder service proxy)
+- `POST /api/v1/build` — upload + build
+- `POST /api/v1/build-and-push` — build + ECR push
+- `GET /api/v1/tasks/{task_id}` — poll task status
+- `GET /api/v1/workspaces/{workspace_id}/tasks` — task history
+- `POST /api/v1/push` — push existing artifact to ECR
+- `POST /api/v1/scaffold` — generate SpinApp manifest
+- `POST /api/v1/deploy` — deploy to Kubernetes (supports `function_id` label, autoscaling, spot)
 
-## Python Code Format (Spin Applications)
+## Operational Notes
+- Poll long-running builder tasks every 5s for up to 10 minutes.
+- Status values may include `pending | running | completed | done | failed`.
+- When passing code, keep it Base64-encoded; backend decodes/validates before S3 write.
 
-When uploading Python code for build, use the Spin Python SDK format:
-
+## Python Code Format (Spin)
 ```python
 from spin_sdk import http
 from spin_sdk.http import Request, Response
+
 
 class IncomingHandler(http.IncomingHandler):
     def handle_request(self, request: Request) -> Response:
         return Response(
             200,
             {"content-type": "text/plain"},
-            bytes("Hello from Blue FaaS!", "utf-8")
+            bytes("Hello from Blue FaaS!", "utf-8"),
         )
 ```
+Reference: https://developer.fermyon.com/spin/v3/python-components
 
-**Reference**: https://developer.fermyon.com/spin/v3/python-components
-
-## Integration
-
-### Builder Service
-- **URL**: https://builder.eunha.icu
-- **Docs**: https://builder.eunha.icu/docs
-- **Integration Method**: HTTP REST API with polling
-- **Polling Interval**: 5 seconds
-- **Timeout**: 10 minutes (120 attempts)
-
-### Kubernetes
-- **SpinApp Deployment**: Via Builder Service `/api/v1/deploy`
-- **Function Labels**: `function_id` for log filtering
-- **Autoscaling**: HPA/KEDA support
-- **Spot Instances**: Optional spot instance scheduling
-
-### AWS Services
-- **DynamoDB**: Task status tracking
-- **S3**: Build source and artifact storage
-- **ECR**: Container image registry
-- **IRSA**: ECR authentication (no credentials needed)
+## Integration Targets
+- **Builder**: https://builder.eunha.icu (REST + polling)
+- **Kubernetes**: Deploy via `/api/v1/deploy`, labels with `function_id`, supports HPA/KEDA and spot
+- **AWS**: DynamoDB (tasks/logs), S3 (sources/artifacts), ECR (images), IRSA for auth
 
 ## Troubleshooting
-
-### Build Fails with "IncomingHandler" Error
-**Solution**: Use the correct Spin Python format (see Python Code Format section above)
-
-### ECR Push Timeout
-**Solution**: Verify IRSA is configured on Builder Service. If using token-based auth, ensure valid ECR password is provided.
-
-### Deploy Fails with Namespace Not Found
-**Solution**: Create the namespace first:
-```bash
-kubectl create namespace <namespace>
-```
+- Build fails with handler error → confirm Spin handler signature (see Python snippet).
+- ECR push timeout → ensure IRSA on Builder; if not, supply valid ECR password.
+- Deploy namespace missing → create namespace first: `kubectl create namespace <namespace>`.
 
 ---
 
-**Last Updated**: 2025-12-06
+**Last Updated**: 2025-12-07
 **Maintainer**: Sungwoo Choi
