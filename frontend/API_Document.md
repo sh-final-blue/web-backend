@@ -1,12 +1,22 @@
-# Backend API Integration Guide
+# Backend API Integration Guide (2025-12-07)
 
-본 문서는 프론트엔드에서 백엔드 API 연동이 필요한 지점을 정리한 문서입니다.
-**"테스트 & 실행" 기능은 프론트엔드 시뮬레이션이므로 제외**되었습니다.
-
+프론트엔드 콘솔이 FastAPI 백엔드를 호출할 때 필요한 데이터 모델과 엔드포인트를 최신 스펙에 맞게 정리한 문서입니다. `VITE_API_URL`(기본: `http://localhost:8000`) 아래에 `/api` 네임스페이스가 존재하며, 빌드/배포 파이프라인은 `/api/v1` prefix를 사용합니다.
 
 ---
 
-## Data Models
+## 📚 목차
+
+1. [데이터 모델](#데이터-모델)
+2. [워크스페이스 API](#워크스페이스-api)
+3. [함수 API](#함수-api)
+4. [로그 & 관측 API](#로그--관측-api)
+5. [빌드 & 배포 API](#빌드--배포-api)
+6. [에러 포맷 & 공통 규칙](#에러-포맷--공통-규칙)
+7. [프론트엔드 연동 노트](#프론트엔드-연동-노트)
+
+---
+
+## 데이터 모델
 
 ### Workspace
 ```typescript
@@ -14,10 +24,10 @@ interface Workspace {
   id: string;
   name: string;
   description?: string;
-  createdAt: Date;
-  functionCount: number;      // 백엔드에서 계산
-  invocations24h: number;      // 백엔드에서 집계
-  errorRate: number;           // 백엔드에서 계산
+  createdAt: string;       // ISO (KST 변환 완료)
+  functionCount: number;   // DynamoDB 집계값
+  invocations24h: number;  // 최근 24시간 호출 수 (백엔드 계산)
+  errorRate: number;       // errors24h / invocations24h * 100
 }
 ```
 
@@ -28,544 +38,330 @@ interface FunctionConfig {
   workspaceId: string;
   name: string;
   description?: string;
-  runtime: string;                              // "Python 3.12"
-  memory: number;                               // 128 | 256 | 512 | 1024 (MB)
-  timeout: number;                              // 1~900 (seconds)
-  httpMethods: string[];                        // ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
-  environmentVariables: Record<string, string>; // Key-Value pairs
-  code: string;                                 // Base64 Encoded Python source code
-  invocationUrl: string | null;                 // 함수 호출 URL (배포 완료 후 생성)
+  runtime: string;                    // default "Python 3.12"
+  memory: number;                     // 128~1024 MB
+  timeout: number;                    // 1~900초
+  httpMethods: string[];
+  environmentVariables: Record<string, string>;
+  code: string;                       // Base64 encoded Python source
+  invocationUrl?: string | null;      // 배포 완료 시 URL 저장
   status: 'active' | 'disabled';
-  lastModified: Date;
-  lastDeployed?: Date;
-  invocations24h: number;                       // 백엔드에서 집계
-  errors24h: number;                            // 백엔드에서 집계
-  avgDuration: number;                          // 백엔드에서 계산 (ms)
+  lastModified: string;               // ISO KST
+  lastDeployed?: string | null;
+  invocations24h: number;
+  errors24h: number;
+  avgDuration: number;                // ms
 }
 ```
 
-**중요 필드**:
-- `code`: **Base64 인코딩 필수** (따옴표/개행 문자 파싱 에러 방지)
-- `invocationUrl`: 함수 배포 완료 시 생성, 미완료 시 `null`
+> 중요: `code`는 항상 Base64 인코딩 상태로 주고받습니다. 백엔드는 유효성 검증 후 S3에 디코딩된 원본을 저장합니다.
 
-### ExecutionLog
+### ExecutionLog / LogsResponse
 ```typescript
 interface ExecutionLog {
   id: string;
   functionId: string;
-  timestamp: Date;
+  timestamp: string;            // ISO KST
   status: 'success' | 'error';
-  duration: number;           // ms
+  duration: number;             // ms
   statusCode: number;
   requestBody?: any;
   responseBody?: any;
   logs: string[];
   level: 'info' | 'warn' | 'error';
 }
+
+interface LogsResponse {
+  logs: ExecutionLog[];
+  total: number;
+}
+```
+
+### Loki & Metrics
+```typescript
+interface LokiLogEntry {
+  timestamp: string;  // nanoseconds string
+  line: string;
+}
+
+interface LokiLogsResponse {
+  logs: LokiLogEntry[];
+  total: number;
+  function_id: string;
+}
+
+interface PrometheusTimeseriesPoint {
+  timestamp: number;  // unix seconds
+  value: number;
+}
+
+interface PrometheusMetricsResponse {
+  status: 'success' | 'partial';
+  function_id: string;
+  data: {
+    cpu_total: number | null;      // sum over last minute
+    cpu_series: PrometheusTimeseriesPoint[];
+    window_seconds: number;        // default 3600
+    instant_query: string;         // PromQL used
+    range_query: string;           // PromQL used
+    raw_instant?: Record<string, any>;
+    raw_range?: Record<string, any>;
+  };
+}
+```
+
+### Build / Deploy
+```typescript
+type BuildStatus = 'pending' | 'running' | 'completed' | 'failed' | 'done';
+
+interface BuildResponse {
+  task_id: string;
+  status: BuildStatus;
+  message: string;
+  source_s3_path?: string;
+}
+
+interface BuildTaskResult {
+  wasm_path?: string | null;
+  image_url?: string | null;  // builder가 image_url/image_uri 둘 중 하나 제공
+  image_uri?: string | null;
+  file_path?: string | null;
+}
+
+interface TaskStatusResponse {
+  task_id: string;
+  status: BuildStatus;
+  result: BuildTaskResult | null;
+  error: string | null;
+}
+
+interface WorkspaceTaskItem {
+  task_id: string;
+  status: BuildStatus;
+  app_name?: string;
+  created_at: string;
+  updated_at: string;
+  result?: BuildTaskResult;
+  error?: string | null;
+}
 ```
 
 ---
 
-## API Endpoints by User Action
+## 워크스페이스 API
+| 액션 | Method & Path | Notes |
+|------|---------------|-------|
+| 생성 | `POST /api/workspaces` | `name` 필수. 응답은 ISO KST 형식. |
+| 목록 | `GET /api/workspaces` | Landing 카드, 워크스페이스 선택 등에 사용. |
+| 상세 | `GET /api/workspaces/{workspaceId}` | 존재하지 않으면 404 `NOT_FOUND`. |
+| 수정 | `PATCH /api/workspaces/{workspaceId}` | `name`는 빈 문자열 불가. |
+| 삭제 | `DELETE /api/workspaces/{workspaceId}` | 204 응답. 연관 함수도 정리 필요. |
 
-### 1️⃣ 워크스페이스 생성
-**UI**: `/` (Landing Page) → "워크스페이스 만들기" 버튼
-
-**Request**:
+**sample**
 ```http
 POST /api/workspaces
 Content-Type: application/json
 
 {
   "name": "Production",
-  "description": "Production environment functions"  // optional
+  "description": "Customer facing"
 }
 ```
 
-**Response** (201 Created):
 ```json
 {
   "id": "ws-abc123",
   "name": "Production",
-  "description": "Production environment functions",
-  "createdAt": "2025-11-30T12:00:00Z",
+  "description": "Customer facing",
+  "createdAt": "2025-12-07T12:00:00+09:00",
   "functionCount": 0,
   "invocations24h": 0,
   "errorRate": 0
 }
 ```
 
-**Frontend Action**:
-- 생성 후 `/workspaces/{id}`로 이동
-- `setCurrentWorkspaceId(id)` 호출
-
 ---
 
-### 2️⃣ 워크스페이스 목록 조회
-**UI**: `/` (Landing Page) - 워크스페이스 카드 목록 표시
+## 함수 API
+### 목록 & 상세
+- `GET /api/workspaces/{workspaceId}/functions`
+- `GET /api/workspaces/{workspaceId}/functions/{functionId}`
 
-**Request**:
-```http
-GET /api/workspaces
-```
+응답은 `FunctionConfig[]` or `FunctionConfig`. `lastModified`/`lastDeployed`는 항상 KST ISO 문자열입니다.
 
-**Response** (200 OK):
-```json
-[
-  {
-    "id": "ws-1",
-    "name": "Production",
-    "description": "Production environment functions",
-    "createdAt": "2025-12-01T00:00:00Z",
-    "functionCount": 1,
-    "invocations24h": 8420,
-    "errorRate": 0.2
-  }
-]
-```
-
----
-
-### 3️⃣ 워크스페이스 수정
-**UI**: `/workspaces/{workspaceId}/settings` → Settings 탭 → "변경사항 저장" 버튼
-
-**Request**:
-```http
-PATCH /api/workspaces/{workspaceId}
-Content-Type: application/json
-
-{
-  "name": "Updated Name",
-  "description": "Updated description"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "id": "ws-1",
-  "name": "Updated Name",
-  "description": "Updated description",
-  "createdAt": "2025-12-01T00:00:00Z",
-  "functionCount": 1,
-  "invocations24h": 8420,
-  "errorRate": 0.2
-}
-```
-
-**Validation**:
-- `name`은 필수 (빈 문자열 불가)
-
----
-
-### 4️⃣ 워크스페이스 삭제
-**UI**: `/workspaces/{workspaceId}/settings` → Danger Zone → "워크스페이스 삭제" 버튼
-
-**Request**:
-```http
-DELETE /api/workspaces/{workspaceId}
-```
-
-**Response** (204 No Content)
-
-**Frontend Action**:
-- 해당 워크스페이스의 모든 함수도 삭제 처리
-- 현재 워크스페이스인 경우 `setCurrentWorkspaceId(null)`
-- `/`로 이동
-
-**Confirmation**: 삭제 전 confirm 다이얼로그 필요
-
----
-
-### 5️⃣ 함수 생성
-**UI**:
-- `/workspaces/{workspaceId}` → "+ 함수 만들기" 버튼
-- `/workspaces/{workspaceId}/functions` → "새 함수" 버튼
-- `/workspaces/{workspaceId}/functions/new` → "함수 만들기" 버튼
-
-**Request**:
+### 생성
 ```http
 POST /api/workspaces/{workspaceId}/functions
 Content-Type: application/json
-
 {
-  "name": "user-authentication",
-  "description": "Handles user login and token generation",
+  "name": "user-auth",
   "runtime": "Python 3.12",
   "memory": 256,
   "timeout": 30,
   "httpMethods": ["POST"],
-  "environmentVariables": {
-    "JWT_SECRET": "secret-key",
-    "TOKEN_EXPIRY": "3600"
-  },
-  "code": "ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsnc3RhdHVzQ29kZSc6IDIwMCwgJ2JvZHknOiAnSGVsbG8nfQ=="
+  "environmentVariables": {"JWT_SECRET": "***"},
+  "code": "ZGVmIGhhbmRsZXIoLi4u"  // Base64
 }
 ```
+- 워크스페이스 존재 검증 후 DynamoDB + S3에 저장.
+- `code`는 Base64 유효성 체크.
+- `httpMethods` 최소 1개.
 
-**중요**: `code` 필드는 **Base64 인코딩된 Python 소스 코드**입니다.
-
-**Response** (201 Created):
-```json
-{
-  "id": "fn-xyz789",
-  "workspaceId": "ws-1",
-  "name": "user-authentication",
-  "description": "Handles user login and token generation",
-  "runtime": "Python 3.12",
-  "memory": 256,
-  "timeout": 30,
-  "httpMethods": ["POST"],
-  "environmentVariables": {
-    "JWT_SECRET": "***"
-  },
-  "code": "ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsnc3RhdHVzQ29kZSc6IDIwMCwgJ2JvZHknOiAnSGVsbG8nfQ==",
-  "invocationUrl": null,
-  "status": "active",
-  "lastModified": "2025-11-30T12:00:00Z",
-  "lastDeployed": null,
-  "invocations24h": 0,
-  "errors24h": 0,
-  "avgDuration": 0
-}
-```
-
-**주의**:
-- `invocationUrl`은 배포 완료 전까지 `null`
-- `code`는 S3에 저장, 응답에는 Base64 문자열 포함
-
-**Validation**:
-- `name`: 필수
-- `httpMethods`: 최소 1개 필요
-- `code`: Base64 디코딩 가능 여부 검증
-
-**Frontend Action**:
-- `code` 필드: 전송 전 `btoa()` 또는 Base64 라이브러리로 인코딩
-- 수신 후 `atob()`로 디코딩하여 에디터에 표시
-- 생성 후 `/workspaces/{workspaceId}/functions/{functionId}`로 이동
-- 워크스페이스의 `functionCount` 증가
-
----
-
-### 6️⃣ 함수 목록 조회
-**UI**: `/workspaces/{workspaceId}/functions` - 함수 목록 테이블
-
-**Request**:
-```http
-GET /api/workspaces/{workspaceId}/functions
-```
-
-**Response** (200 OK):
-```json
-[
-  {
-    "id": "fn-1",
-    "workspaceId": "ws-1",
-    "name": "user-authentication",
-    "description": "Handles user login and token generation",
-    "runtime": "Python 3.12",
-    "memory": 256,
-    "timeout": 30,
-    "httpMethods": ["POST"],
-    "environmentVariables": {
-      "JWT_SECRET": "secret-key",
-      "TOKEN_EXPIRY": "3600"
-    },
-    "code": "ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsnc3RhdHVzQ29kZSc6IDIwMCwgJ2JvZHknOiAnSGVsbG8nfQ==",
-    "invocationUrl": "https://api.example.com/invoke/fn-1",
-    "status": "active",
-    "lastModified": "2025-11-28T00:00:00Z",
-    "lastDeployed": "2025-11-28T00:00:00Z",
-    "invocations24h": 8420,
-    "errors24h": 15,
-    "avgDuration": 145
-  }
-]
-```
-
-**Frontend Features**:
-- 검색 기능 (클라이언트 사이드)
-- 테이블 표시: Name, Runtime, Status, Invocations(24h), Last Modified
-- `code` 필드는 목록에서는 표시 안 함 (상세 조회 시에만)
-
----
-
-### 7️⃣ 함수 상세 조회
-**UI**: `/workspaces/{workspaceId}/functions/{functionId}` - Overview/Logs/Code 탭
-
-**Request**:
-```http
-GET /api/workspaces/{workspaceId}/functions/{functionId}
-```
-
-**Response** (200 OK):
-```json
-{
-  "id": "fn-1",
-  "workspaceId": "ws-1",
-  "name": "user-authentication",
-  "description": "Handles user login and token generation",
-  "runtime": "Python 3.12",
-  "memory": 256,
-  "timeout": 30,
-  "httpMethods": ["POST"],
-  "environmentVariables": {
-    "JWT_SECRET": "secret-key",
-    "TOKEN_EXPIRY": "3600"
-  },
-  "code": "ZGVmIGhhbmRsZXIoZXZlbnQsIGNvbnRleHQpOgogICAgcmV0dXJuIHsnc3RhdHVzQ29kZSc6IDIwMCwgJ2JvZHknOiAnSGVsbG8nfQ==",
-  "invocationUrl": "https://api.example.com/invoke/fn-1",
-  "status": "active",
-  "lastModified": "2025-11-28T00:00:00Z",
-  "lastDeployed": "2025-11-28T00:00:00Z",
-  "invocations24h": 8420,
-  "errors24h": 15,
-  "avgDuration": 145
-}
-```
-
-**Display Tabs**:
-- **Overview**: 엔드포인트 (`invocationUrl`), 설정, 메트릭
-- **Logs**: 실행 로그 조회 (별도 API)
-- **Code**: `code` 필드를 Base64 디코딩하여 Monaco Editor에 표시
-- ~~**Test**: 프론트엔드 시뮬레이션 (API 불필요)~~
-
-**Frontend Action**:
-- `code` 필드: `atob()`로 디코딩 후 표시
-
----
-
-### 8️⃣ 함수 상태 토글 (활성/비활성)
-**UI**: `/workspaces/{workspaceId}/functions` → 함수 드롭다운 메뉴 → "활성화" / "비활성화"
-
-**Request**:
+### 수정 (설정/상태/코드)
 ```http
 PATCH /api/workspaces/{workspaceId}/functions/{functionId}
 Content-Type: application/json
-
 {
-  "status": "disabled"  // or "active"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "id": "fn-1",
+  "description": "Updated",
   "status": "disabled",
-  "lastModified": "2025-11-30T12:00:00Z",
-  ...
+  "invocationUrl": "https://fn.prod.example/run",
+  "code": "..." // 선택
 }
 ```
+- 전달된 필드만 패치.
+- `invocationUrl`은 scheme 없으면 http:// 전체 보정.
+- `code` 변경 시 Base64 재검증 + S3 업데이트.
+- `lastDeployed`를 보낼 경우 ISO 문자열을 사용하면 KST로 변환 저장.
+
+### 삭제
+`DELETE /api/workspaces/{workspaceId}/functions/{functionId}`
+- 성공 시 204.
+- 백엔드가 `kubectl delete spinapp {functionName}` 실행(없어도 무시) 후 S3와 DynamoDB 레코드 제거.
+
+### Invoke (실제 함수 호출)
+```http
+POST /api/workspaces/{workspaceId}/functions/{functionId}/invoke
+Content-Type: application/json
+{ "test": true }
+```
+- Backend가 `invocationUrl`(없으면 함수명 기반 fallback DNS)로 HTTP POST.
+- 응답 body는 실제 함수 응답 그대로 전달.
+- 실행 결과가 `ExecutionLog` 형태로 DynamoDB에 적재되고 `invocations24h/errors24h/avgDuration` 갱신.
+- 타임아웃 시 504, 네트워크 오류 시 503, 기타 오류 500.
 
 ---
 
-### 9️⃣ 함수 삭제
-**UI**:
-- `/workspaces/{workspaceId}/functions` → 드롭다운 메뉴 → "삭제"
-- `/workspaces/{workspaceId}/functions/{functionId}` → "함수 삭제" 버튼
+## 로그 & 관측 API
+### 실행 로그 (DynamoDB)
+| Path | 설명 |
+|------|------|
+| `GET /api/workspaces/{workspaceId}/logs?limit=50` | 워크스페이스 내 최근 로그를 함수별로 모아 최신순 정렬. |
+| `GET /api/workspaces/{workspaceId}/functions/{functionId}/logs?limit=100` | 단일 함수 로그. 최대 1000. |
 
-**Request**:
-```http
-DELETE /api/workspaces/{workspaceId}/functions/{functionId}
-```
+### Loki 실시간 로그
+`GET /api/functions/{function_id}/loki-logs?limit=100`
+- Promtail이 함수 Pod 라벨 `function_id`로 보낸 로그를 바로 조회.
+- 응답은 `LokiLogsResponse`; 실패 시 503(`LOKI_CONNECTION_ERROR`) 또는 500(`LOKI_ERROR`).
 
-**Response** (204 No Content)
-
-**Backend Action**:
-- DynamoDB에서 함수 레코드 삭제
-- S3에서 코드 파일 삭제 (`s3://bucket/{workspaceId}/{functionId}.py`)
-
-**Frontend Action**:
-- 워크스페이스의 `functionCount` 감소
-- 상세 페이지에서 삭제 시 `/workspaces/{workspaceId}/functions`로 이동
-
-**Confirmation**: 삭제 전 confirm 다이얼로그 필요
+### Prometheus 메트릭
+`GET /api/functions/{function_id}/metrics`
+- 최근 60분 동안의 CPU 사용량(1분 rate)을 반환.
+- `status`가 `partial`이면 Instant/Range 둘 중 하나만 성공한 상황.
+- 에러 시 503(`PROMETHEUS_CONNECTION_ERROR`).
 
 ---
 
-### 🔟 함수 실행 로그 조회
-**UI**: `/workspaces/{workspaceId}/functions/{functionId}` → "로그" 탭
+## 빌드 & 배포 API
+Builder Service(https://builder.eunha.icu)와 연동하며, 모든 장기 작업은 백엔드 BackgroundTask가 Builder의 작업 ID를 폴링합니다.
 
-**Request**:
-```http
-GET /api/workspaces/{workspaceId}/functions/{functionId}/logs?limit=100
-```
+### 파일 업로드 & 빌드
+`POST /api/v1/build` (multipart/form-data)
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `file` | binary | ✅ | `.py` 또는 `.zip` 파일 |
+| `app_name` | text | ❌ | 미지정 시 task 기반 이름 자동 생성 |
+| `workspace_id` | text | ❌ | 기본 `ws-default` |
 
-**Query Parameters** (MVP 간소화):
-- `limit`: 조회할 로그 수 (기본 100, 최대 1000)
+응답: `BuildResponse` (`202 Accepted`). 백엔드는 S3에 소스 업로드 후 Builder `/api/v1/build` 호출 → 5초 간격 10분 폴링.
 
-**Response** (200 OK):
+### 작업 상태 / 이력
+- `GET /api/v1/tasks/{task_id}` → `TaskStatusResponse`
+- `GET /api/v1/workspaces/{workspace_id}/tasks` → 워크스페이스 작업 히스토리 목록
+
+### ECR 이미지 푸시
+`POST /api/v1/push` (JSON)
 ```json
 {
-  "logs": [
-    {
-      "id": "log-1",
-      "functionId": "fn-1",
-      "timestamp": "2025-11-30T12:05:00Z",
-      "status": "success",
-      "duration": 142,
-      "statusCode": 200,
-      "requestBody": {
-        "username": "john@example.com"
-      },
-      "responseBody": {
-        "token": "jwt.token.here"
-      },
-      "logs": ["Processing authentication request", "Token generated successfully"],
-      "level": "info"
-    }
-  ],
-  "total": 1
+  "registry_url": "123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/my-app",
+  "username": "AWS",
+  "password": "<optional>",
+  "tag": "v1.0.0",
+  "workspace_id": "ws-default",
+  "s3_source_path": "s3://..."
 }
 ```
+- IRSA 사용 시 username/password 생략 가능 (백엔드가 빈 문자열 전달).
+- 응답은 `BuildResponse`(`task_id`). 백엔드가 Builder `/api/v1/push` 호출 후 상태 폴링.
 
-**MVP 페이지네이션**:
-- 최신 `limit`개만 반환 (간단한 구현)
-- 추후 확장 시 `nextToken` 방식으로 변경 가능
+### SpinApp 매니페스트 생성
+`POST /api/v1/scaffold`
+```json
+{
+  "image_ref": "123.dkr.ecr/...:v1.0.0",
+  "component": "api",
+  "replicas": 1,
+  "output_path": "/tmp/spinapp.yaml"
+}
+```
+- Builder `/api/v1/scaffold` 동기 호출, 성공 시 YAML 내용을 그대로 반환.
 
-**Display Columns**:
-- Timestamp
-- Status (Badge)
-- Duration (ms)
-- Status Code
+### Kubernetes 배포
+`POST /api/v1/deploy`
+```json
+{
+  "app_name": "my-spin-app",
+  "namespace": "default",
+  "image_ref": "123.dkr.ecr/...:v1.0.0",
+  "enable_autoscaling": true,
+  "replicas": 3,            // enable_autoscaling=true 이면 백엔드가 필드 제거
+  "use_spot": true,
+  "function_id": "fn-xyz789"
+}
+```
+- 추가 필드: `service_account`, `cpu_limit`, `memory_limit`, `cpu_request`, `memory_request`, `custom_tolerations`, `custom_affinity`.
+- Builder 응답에 `endpoint`가 없으면 5초 대기 후 재조회.
+
+### 빌드+푸시 통합
+`POST /api/v1/build-and-push` (multipart/form-data)
+| 필드 | 설명 |
+|------|------|
+| `file` | `.py`/`.zip` |
+| `registry_url` | ECR URL |
+| `username`/`password` | IRSA 사용 시 비워둘 수 있음 |
+| `tag` | 기본 `sha256` (백엔드가 `task-{task_id}`로 치환) |
+| `app_name` | 선택 |
+| `workspace_id` | 기본 `ws-default` |
+
+- 백엔드는 Builder `/api/v1/build-and-push` 호출 → 5초 폴링.
+- Builder가 `image_url`을 주지 않으면 `registry_url:tag` 조합으로 보완 후 DynamoDB 작업 상태 갱신.
 
 ---
 
-## API 연동이 불필요한 영역
-
-### ❌ "테스트 & 실행" 탭
-**UI**: `/workspaces/{workspaceId}/functions/{functionId}` → "테스트 & 실행" 탭
-
-**이유**: 프론트엔드에서 `invokeFunction()` 메서드로 시뮬레이션
-- 100~500ms 랜덤 지연
-- 90% 성공률 시뮬레이션
-- ExecutionLog 생성 (메모리)
-- 백엔드 API 호출 없음
-
-**실제 함수 실행**은 사용자가 `invocationUrl`로 직접 HTTP 요청을 보냅니다.
-
----
-
-## 백엔드 구현 시 고려사항
-
-### 1. 집계 데이터 계산
-- `functionCount`: 워크스페이스별 활성 함수 개수
-- `invocations24h`: 최근 24시간 호출 횟수
-- `errors24h`: 최근 24시간 에러 횟수
-- `errorRate`: `(errors / invocations) * 100`
-- `avgDuration`: 평균 실행 시간 (ms)
-
-### 2. 코드 저장 전략 (S3 + DynamoDB)
-
-**S3 버킷 구조**:
-```
-s3://functions-code-bucket/
-  └─ {workspaceId}/
-      └─ {functionId}.py        # Base64 디코딩된 Python 파일
-```
-
-**DynamoDB 테이블 (단일 테이블 설계)**:
-```
-Table: FaaSData
-PK (Partition Key): String
-SK (Sort Key): String
-Attributes: JSON (모든 필드)
-
-레코드 예시:
-1. 워크스페이스:
-   PK: "WS#{workspaceId}"
-   SK: "METADATA"
-   Attributes: { name, description, createdAt, ... }
-
-2. 함수:
-   PK: "WS#{workspaceId}"
-   SK: "FN#{functionId}"
-   Attributes: { name, runtime, memory, invocationUrl, codeS3Key, ... }
-
-3. 로그:
-   PK: "FN#{functionId}"
-   SK: "LOG#{timestamp}#{logId}"
-   Attributes: { status, duration, statusCode, ... }
-```
-
-**장점**:
-- 단일 테이블로 관계 표현 가능
-- 워크스페이스별 함수 조회: `PK = "WS#ws-1", SK begins_with "FN#"`
-- 함수별 로그 조회: `PK = "FN#fn-1", SK begins_with "LOG#"`
-
-### 3. Base64 인코딩/디코딩 처리
-
-**프론트엔드 (JavaScript)**:
-```javascript
-// 전송 전
-const encoded = btoa(pythonCode);  // 인코딩
-
-// 수신 후
-const decoded = atob(response.code);  // 디코딩
-```
-
-**백엔드 (Python)**:
-```python
-import base64
-
-# 수신 후
-decoded_code = base64.b64decode(request_data['code']).decode('utf-8')
-
-# S3에 저장 (원본 Python 코드)
-s3.put_object(Bucket='bucket', Key=f'{ws_id}/{fn_id}.py', Body=decoded_code)
-
-# 응답 전
-encoded_code = base64.b64encode(python_code.encode('utf-8')).decode('utf-8')
-```
-
-### 4. 에러 응답 포맷
+## 에러 포맷 & 공통 규칙
 ```json
 {
   "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Function name is required",
-    "details": {
-      "field": "name"
-    }
+    "code": "VALIDATION_ERROR" | "NOT_FOUND" | "CREATE_ERROR" | ...,
+    "message": "Human readable message",
+    "details": { "field": "name" }
   }
 }
 ```
-
-### 5. 환경 변수 처리
-- `environmentVariables`는 민감 정보 포함 가능
-- MVP에서는 평문 저장/조회 (추후 암호화 및 마스킹 고도화 필요)
-
----
-
-## URL 라우팅 매핑
-
-```
-/                                                    # 워크스페이스 목록 조회
-/workspaces/{id}                                     # 워크스페이스 대시보드
-/workspaces/{id}/functions                           # 함수 목록 조회
-/workspaces/{id}/functions/new                       # 함수 생성 폼
-/workspaces/{id}/functions/{fnId}                    # 함수 상세 조회
-  └─ Overview 탭                                      # 함수 정보 표시 (invocationUrl 포함)
-  └─ Test 탭                                          # ❌ 프론트엔드 시뮬레이션
-  └─ Logs 탭                                          # 로그 조회
-  └─ Code 탭                                          # Base64 디코딩 후 표시
-/workspaces/{id}/settings                            # 워크스페이스 수정/삭제
-```
+- 404: 리소스 미존재 (`NOT_FOUND`).
+- 400: 검증 실패 (`VALIDATION_ERROR`).
+- 500: 예외 (`*_ERROR`).
+- 502/503/504는 Builder/오브저버빌리티 연동 실패 케이스에서 반환.
 
 ---
 
-## MVP 구현 체크리스트
+## 프론트엔드 연동 노트
+- `lib/api.ts`는 모든 호출에 `VITE_API_URL` prefix를 붙입니다. 새 API 추가 시 동일한 에러 파싱(`ApiError`)을 재사용하세요.
+- 함수 코드 편집 시 **저장 전에 Base64 인코딩**하고, 응답을 디코딩해 Monaco Editor에 표시합니다.
+- 함수 삭제 후에는 워크스페이스의 `functionCount`와 캐시된 함수 목록을 즉시 갱신해야 합니다.
+- Build/Deploy 플로우는 `npm run dev` 환경에서도 작동하지만, Builder 서비스와의 네트워크가 필요합니다. 장기 작업은 `GET /api/v1/tasks/{task_id}`를 5초 간격으로 폴링(최대 10분)하세요.
+- 로그 탭은 DynamoDB 로그와 Loki 스트림을 각각 탭으로 구분해 오류 격리 메시지를 보여주세요.
+- Metrics 탭은 Prometheus API 실패 시에도 페이지가 유지되도록 `status === 'partial'`을 허용하고, `raw_*` 데이터를 개발자 도구용으로만 사용하세요.
 
-### 필수 구현
-- [ ] Base64 인코딩/디코딩 (code 필드)
-- [ ] invocationUrl 필드 추가
-- [ ] 단일 DynamoDB 테이블 설계
-- [ ] S3 코드 저장 경로 설계
-- [ ] 간단한 로그 조회 (limit만)
+---
 
-### 추후 확장
-- [ ] nextToken 기반 페이지네이션
-- [ ] 환경 변수 암호화 및 마스킹
-- [ ] 메트릭 실시간 집계 (CloudWatch)
-- [ ] 함수 배포 자동화 (invocationUrl 생성)
+최종 점검일: **2025-12-07**
