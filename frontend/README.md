@@ -1,116 +1,139 @@
 # Frontend
 
-서버리스 함수 관리 플랫폼 프론트엔드
+SoftBank Hackathon FaaS 플랫폼의 React 기반 운영 콘솔입니다. 워크스페이스/함수를 생성하고, Builder Service와 연동해 Spin 애플리케이션을 빌드·배포하며, Loki/Prometheus로 관측 데이터를 노출하는 UI를 제공합니다.
 
-## 기술 스택
+## Stack & Tooling
 
-### 핵심 프레임워크 및 라이브러리
-- **React**: 18.3.1
-- **TypeScript**: 5.8.3
-- **Vite**: 5.4.21 (빌드 툴)
-- **Node.js**: 22.14.0 (권장)
-- **npm**: 11.6.2 (권장)
+| Layer | Selection |
+|-------|-----------|
+| Framework | React 18 + TypeScript + Vite |
+| State/Data | Custom `AppContext` + TanStack Query + React Router 6 |
+| UI | shadcn/ui (Radix), Tailwind CSS, Lucide icons |
+| Editors/Charts | Monaco Editor, Recharts |
+| Observability UX | Sonner toasts, custom metrics/log tables |
+| i18n | i18next (ko default, en/ja bundles) |
 
-### UI 라이브러리
-- **Shadcn/ui**: Radix UI 기반 컴포넌트 라이브러리
-- **Tailwind CSS**: 3.4.17 (스타일링)
-- **Lucide React**: 0.462.0 (아이콘)
-- **Recharts**: 2.15.4 (차트)
+Dev tooling: SWC React plugin, ESLint 9 + typescript-eslint 8, PostCSS/Autoprefixer, Tailwind Typography.
 
-### 주요 라이브러리
-- **React Router DOM**: 6.30.1 (라우팅)
-- **TanStack React Query**: 5.83.0 (서버 상태 관리)
-- **Monaco Editor**: 4.7.0 (코드 에디터)
-- **i18next**: 25.6.3 (다국어 지원)
-- **React Hook Form**: 7.61.1 (폼 관리)
-- **Zod**: 3.25.76 (스키마 검증)
-- **date-fns**: 3.6.0 (날짜 처리)
-- **Sonner**: 1.7.4 (토스트 알림)
+## Features
 
-### 개발 도구
-- **@vitejs/plugin-react-swc**: 3.11.0 (SWC 기반 Fast Refresh)
-- **ESLint**: 9.32.0
-- **TypeScript ESLint**: 8.38.0
-- **Autoprefixer**: 10.4.21
-- **PostCSS**: 8.5.6
+- Workspace lifecycle: landing page lists live workspaces from the FastAPI backend, supports creation and navigation.
+- Function lifecycle: create, update, enable/disable, delete functions with Monaco-based editor and HTTP method toggles. Payloads are Base64 encoded before hitting the backend.
+- Build/deploy automation: Function Detail page can trigger `/api/v1/build-and-push` + `/api/v1/deploy`, poll task states, and surface builder errors. Newly created functions auto-deploy when status is `building`.
+- Invocation & testing: inline JSON request editor executes `/api/workspaces/{id}/functions/{fn}/invoke`, then streams logs/metrics into UI metrics cards and tables.
+- Observability: real-time Loki log tab, Prometheus CPU chart (instant + range query) with derived stats (avg/peak).
+- Localization-ready UI copy via `src/lib/i18n.ts`, currently shipping Korean/English/Japanese dictionaries.
+- Responsive layout system built on shadcn components and custom `AppLayout`/`WorkspaceSidebar`.
 
-## 설치 및 실행
+## Application Flow
 
-### 요구사항
-- Node.js 22.x 이상
-- npm 11.x 이상
+```
+Frontend (React Router)
+	│
+	├─ Landing → list/create workspaces via AppContext → GET/POST /api/workspaces
+	├─ WorkspaceDashboard → aggregate metrics/logs already cached in context
+	├─ FunctionsList → query + filter functions per workspace
+	├─ NewFunction → Base64 encode code → POST /api/workspaces/{ws}/functions
+	└─ FunctionDetail
+			 ├─ Invoke tab → POST /api/.../invoke
+			 ├─ Build & Deploy → POST /api/v1/build-and-push → poll tasks → POST /api/v1/deploy
+			 ├─ Logs tab → GET /api/.../logs + GET /api/functions/{fn}/loki-logs
+			 └─ Metrics tab → GET /api/functions/{fn}/metrics
+```
 
-### 설치
+Data fetching is centralized in `AppContext`. Workspaces/functions/logs are stored in local state, while builder/observability calls are performed on demand. React Query is configured globally for future caching (currently delegated to context for finer control).
+
+## Environment Setup
+
+Requirements
+- Node.js 22.x (matching CI toolchain)
+- npm 11.x
+
+Install deps
 ```bash
+cd frontend
 npm install
 ```
 
-### 개발 서버 실행
+Environment variables (create `frontend/.env` or export)
+```
+VITE_API_URL=https://api.eunha.icu   # or http://localhost:8000 when running backend locally
+```
+If omitted, the app falls back to `window.location.origin` (useful when frontend is reverse-proxied behind the same domain as the backend).
+
+Scripts
 ```bash
-npm run dev
-```
-서버 주소: http://localhost:3000
-
-### 빌드
-```bash
-# Production 빌드
-npm run build
-
-# Development 빌드
-npm run build:dev
+npm run dev         # Vite dev server (defaults to http://localhost:5173)
+npm run build       # Production build + type checking
+npm run build:dev   # Development-mode bundle (keeps source maps, faster)
+npm run preview     # Preview build output on a local server
+npm run lint        # ESLint (flat config) across TS/TSX
 ```
 
-### Lint
-```bash
-npm run lint
+## Routing Surface
+
+| Route | Screen | Notes |
+|-------|--------|-------|
+| `/` | Landing | Lists workspaces, create dialog, workspace metrics cards |
+| `/workspaces/:workspaceId` | WorkspaceDashboard | Summary metrics, recent invocation table |
+| `/workspaces/:workspaceId/functions` | FunctionsList | Search/filter, status toggle, delete |
+| `/workspaces/:workspaceId/functions/new` | NewFunction | Config forms + Monaco editor |
+| `/workspaces/:workspaceId/functions/:functionId` | FunctionDetail | Tabs for overview/test/logs/realtime/metrics/code; deploy button |
+| `/workspaces/:workspaceId/settings` | WorkspaceSettings (skeleton) |
+| `*` | NotFound |
+
+## Source Layout
+
+```
+src/
+├─ App.tsx               # Providers (React Query, i18n, Router)
+├─ main.tsx              # Mount + i18n bootstrap + title helper
+├─ components/
+│   ├─ AppLayout.tsx     # Shell + top nav + workspace selector
+│   ├─ WorkspaceSidebar.tsx
+│   ├─ CodeEditor.tsx    # Monaco wrapper with sensible defaults
+│   ├─ MetricsCard.tsx
+│   ├─ EmptyState.tsx, AppFooter.tsx, etc.
+│   └─ ui/               # shadcn-generated primitives
+├─ contexts/AppContext.tsx
+│   ├─ Holds workspaces/functions/logs state
+│   ├─ Encodes/decodes Base64 function code
+│   └─ Wraps lib/api calls + exposes helpers (invoke, deploy, metrics, Loki)
+├─ lib/
+│   ├─ api.ts            # REST client, builder/deploy helpers, error class
+│   ├─ i18n.ts           # i18next bootstrap (ko/en/ja)
+│   └─ utils.ts          # date helpers, formatting
+├─ pages/                # Route-level screens listed above
+├─ hooks/                # Responsive helpers (e.g., use-mobile)
+└─ locales/              # JSON dictionaries
 ```
 
-### 미리보기
-```bash
-npm run preview
-```
+## API Integration Details
 
-## 프로젝트 구조
+- Base URL is `import.meta.env.VITE_API_URL` (defaults to `http://localhost:8000`).
+- Every request is routed through `lib/api.ts`. Errors throw `ApiError` with HTTP status and parsed backend payload.
+- Function code is Base64 encoded before POST/PATCH and decoded back for editing.
+- Build/deploy flow uses multipart form uploads (`/api/v1/build-and-push`) and polls `/api/v1/tasks/{taskId}` until `completed/done`. On success the UI immediately calls `/api/v1/deploy` with `function_id` and surfaces endpoints to the user.
+- Observability tabs hit `/api/functions/{functionId}/loki-logs` and `/api/functions/{functionId}/metrics`. Errors show inline fallback text so the UI remains usable even if Loki/Prometheus is down.
 
-```
-frontend/
-├── src/
-│   ├── components/       # 재사용 가능한 컴포넌트
-│   │   ├── ui/          # Shadcn UI 컴포넌트
-│   │   ├── AppLayout.tsx
-│   │   ├── CodeEditor.tsx
-│   │   ├── MetricsCard.tsx
-│   │   └── WorkspaceSidebar.tsx
-│   ├── contexts/        # React Context (상태 관리)
-│   │   └── AppContext.tsx
-│   ├── hooks/           # Custom Hooks
-│   ├── lib/             # 유틸리티 함수
-│   │   ├── i18n.ts
-│   │   └── utils.ts
-│   ├── pages/           # 페이지 컴포넌트
-│   │   ├── Landing.tsx
-│   │   ├── WorkspaceDashboard.tsx
-│   │   ├── FunctionsList.tsx
-│   │   ├── NewFunction.tsx
-│   │   ├── FunctionDetail.tsx
-│   │   └── WorkspaceSettings.tsx
-│   ├── App.tsx
-│   ├── main.tsx
-│   └── index.css
-├── public/
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── tailwind.config.ts
-```
+## Localization & Theming
 
-## 주요 기능
+- `src/lib/i18n.ts` registers Korean (default), English, Japanese resource bundles; translations live under `src/locales/`.
+- `setAppTitle.ts` updates the document title based on the current workspace or page context.
+- `next-themes` is prepared for future dark/light theme toggles (currently static light theme with Tailwind tokens).
 
-- ✅ 워크스페이스 관리 (생성, 조회, 삭제)
-- ✅ 서버리스 함수 관리 (CRUD)
-- ✅ Monaco 기반 코드 에디터 (Python 3.12 지원)
-- ✅ 함수 테스트 인터페이스
-- ✅ 실행 로그 조회
-- ✅ 메트릭 대시보드
-- ✅ 다국어 지원 준비 (i18next)
-- ⏳ 백엔드 API 연동 (예정)
+## Development Notes
+
+- The frontend assumes the backend from `../backend` repo is reachable; see backend README for how to start FastAPI locally via Docker Compose.
+- Monaco Editor requires `--host 0.0.0.0` when running inside containers (Vite already handles this if you pass `npm run dev -- --host`).
+- When testing build/deploy locally, ensure the backend Builder Service proxy (api → builder) has network access; otherwise the deploy tab will show toast errors surfaced from `ApiError`.
+- React Query is available for future data synchronization but the current implementation keeps caching logic inside `AppContext`; be cautious when introducing new hooks to avoid double fetching.
+
+## Future Enhancements
+
+- Hook `WorkspaceSettings` to backend PATCH/DELETE endpoints.
+- Add automated tests (Cypress or React Testing Library) covering builder and observability flows.
+- Expose historical metrics (Prometheus range selects) and log search filters (Loki query builder).
+
+---
+Last updated: 2025-12-07
