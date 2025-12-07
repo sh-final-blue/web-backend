@@ -619,29 +619,6 @@ export default function FunctionDetail() {
                               </ResponsiveContainer>
                             </div>
                           </div>
-
-                          <div className="rounded-md border">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Timestamp</TableHead>
-                                  <TableHead>CPU (cores)</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {recentCpuSeries.map((point, idx) => (
-                                  <TableRow key={`${point.timestamp}-${idx}`}>
-                                    <TableCell className="text-muted-foreground">
-                                      {new Date(point.timestamp * 1000).toLocaleString()}
-                                    </TableCell>
-                                    <TableCell className="font-mono">
-                                      {point.value.toFixed(4)}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
                         </>
                       )}
                     </div>
