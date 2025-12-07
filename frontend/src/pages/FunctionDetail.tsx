@@ -55,7 +55,6 @@ export default function FunctionDetail() {
 
   // Deploy State
   const [isDeploying, setIsDeploying] = useState(false);
-  const [deployProgress, setDeployProgress] = useState<string>('');
   const [isFunctionLoading, setIsFunctionLoading] = useState(false);
 
   useEffect(() => {
@@ -75,7 +74,9 @@ export default function FunctionDetail() {
     load();
   }, [workspaceId, fn, isFunctionLoading, loadFunctions]);
 
-  const endpointUrl = fn?.invocationUrl || `${import.meta.env.VITE_API_URL || window.location.origin}/api/workspaces/${workspaceId}/functions/${functionId}/invoke`;
+  // 프런트에서 보여주는 엔드포인트는 항상 백엔드 프록시 경로로 고정 (외부에서 호출 가능한 도메인 유지)
+  const apiBaseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+  const endpointUrl = `${apiBaseUrl}/api/workspaces/${workspaceId}/functions/${functionId}/invoke`;
 
   const handleCopyUrl = () => {
     navigator.clipboard.writeText(endpointUrl);
@@ -172,25 +173,16 @@ export default function FunctionDetail() {
 
     setIsDeploying(true);
     setIsTestDisabled(true); // 테스트&실행 버튼 비활성화
-    setDeployProgress('Starting build and deploy...');
 
     try {
-      const endpoint = await buildAndDeployFunction(
-        functionId,
-        fn.code,
-        (status) => {
-          setDeployProgress(status);
-        }
-      );
+      const endpoint = await buildAndDeployFunction(functionId, fn.code);
 
       if (!endpoint) {
         toast.info('배포는 완료되었고 엔드포인트가 발급 중입니다. 약 5초 뒤 새로고침하거나 다시 시도해주세요.');
-        setDeployProgress('');
         return;
       }
 
       toast.success(`Deployed successfully! Endpoint: ${endpoint}`);
-      setDeployProgress('');
     } catch (error: any) {
       console.error('Deploy failed:', error);
       const message = typeof error?.message === 'string' ? error.message : '';
@@ -199,7 +191,6 @@ export default function FunctionDetail() {
       } else {
         toast.error(`배포 실패: ${message || '알 수 없는 오류가 발생했습니다.'} (kubectl logs -n blue-faas deployment/blue-faas -c blue-faas --tail=200 로 확인 가능)`);
       }
-      setDeployProgress('');
     } finally {
       setIsDeploying(false);
       // 배포 완료 후 5초간 테스트&실행 버튼 비활성화 유지 후 활성화 및 토스트 표시
@@ -270,12 +261,6 @@ export default function FunctionDetail() {
               </Button>
             </div>
           </div>
-          {isDeploying && deployProgress && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-              <div className="text-sm font-medium text-blue-900">Deployment in Progress</div>
-              <div className="text-xs text-blue-700 mt-1">{deployProgress}</div>
-            </div>
-          )}
         </div>
 
         <Tabs defaultValue="overview" className="space-y-6">
